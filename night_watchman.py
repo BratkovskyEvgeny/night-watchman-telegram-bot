@@ -1115,11 +1115,30 @@ class NightWatchman:
                 # Skip ban if USER was enhanced by admin OR user has > 10 rep
                 if is_user_enhanced:
                     logger.info(f"🛡️ User {user_name} (ID: {user_id}) was enhanced by admin, skipping instant ban")
-                    await self._delete_message(chat_id, message_id)
+                    
+                    ban_triggers = result.get('triggers', [])
+                    # STRICT DELETE for enhanced users too (Account might be compromised)
+                    if any(t in ['adult_content', 'casino_spam', 'telegram_bot_link'] for t in ban_triggers):
+                        await self._delete_message(chat_id, message_id)
+                        return
+
+                    logger.info(f"✅ Enhanced user {user_name}: Allowed potential spam message")
                     return
                 elif is_high_rep:
                     logger.info(f"🛡️ User {user_name} has high reputation ({user_rep}), skipping instant ban")
-                    await self._delete_message(chat_id, message_id)
+                    # Should we delete? Only if it's REALLY bad (porn/casino). 
+                    # If it's just "promo", maybe let it slide or just warn?
+                    # For now, let's NOT delete if it's just "promo_spam" or "financial_scam" as these have false positives.
+                    ban_triggers = result.get('triggers', [])
+                    
+                    # STRICT DELETE categories (Adult, Casino, Bot Links)
+                    if any(t in ['adult_content', 'casino_spam', 'telegram_bot_link'] for t in ban_triggers):
+                        await self._delete_message(chat_id, message_id)
+                        return
+                    
+                    # For other categories (e.g. "financial_scam", "promo_spam"), 
+                    # TRUST the high rep user and DO NOT DELETE.
+                    logger.info(f"✅ Trusted user {user_name}: Allowed potential spam message ({ban_triggers})")
                     return
                 
                 await self._handle_instant_ban(
