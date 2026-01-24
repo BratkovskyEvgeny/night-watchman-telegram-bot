@@ -16,3 +16,6 @@ google-genai>=0.2.0
 
 # Note: Hugging Face API uses httpx (already included above)
 # Optional: Get free API key at https://huggingface.co/settings/tokens
+
+# Redis (for state management)
+redis>=5.0.0

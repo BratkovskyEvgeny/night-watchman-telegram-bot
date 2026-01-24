@@ -53,6 +53,15 @@ class SpamDetector:
             r"\$\d{2,5} (profit|returns|income|gain|withdrawal)",
             r"\d+% (daily|weekly|monthly) (returns?|profit|roi)",
             r"roi of \d+%",
+            # Specific Scam: Kathy Lien
+            r"kathy lien.*transformed my trading journey",
+            r"financial assistance.*pivotal",
+            r"seamless withdrawal process",
+            # Specific Scam: Indian Group / False Positive fix needs regex
+            r"@trustcryptopremiums",
+            # Specific Scam: Free Bitcoin Code
+            r"get ₹\d+ btc on your first",
+            r"code [a-z0-9]{5,10}",
         ]
         for pattern in scam_regexes:
             if re.search(pattern, message_lower):

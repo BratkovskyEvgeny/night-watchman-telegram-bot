@@ -50,6 +50,11 @@ class Config:
         "works 24/5 on mt4 and mt5",
         "funded account challenges",
         "send me a dm for more proof",
+        # Kathy Lien / Financial Assistance Scam
+        "financial assistance", "seamless withdrawal", "transformed my trading journey",
+        "trading journey! her", "pivotal, and i appreciate",
+        # Indian Group Scam
+        "trustcryptopremiums", "@trustcryptopremiums",
         
         # AGGRESSIVE DM/CONTACT PATTERNS (INSTANT BAN)
         "dm me now", "dm me", "message me now", "message me",
@@ -194,6 +199,8 @@ class Config:
         "coingecko.com",
         "coinmarketcap.com",
         "tradingview.com",
+        "apps.apple.com", # App Store
+        "play.google.com", # Play Store
     ]
     
     # New user settings

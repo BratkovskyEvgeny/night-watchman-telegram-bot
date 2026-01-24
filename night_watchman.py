@@ -22,6 +22,7 @@ from ticker_fetcher import ticker_fetcher, get_crypto_tickers
 from behavior_profiler import BehaviorProfiler
 from context_analyzer import ContextAnalyzer
 from adaptive_thresholds import AdaptiveThresholds
+from redis_manager import RedisManager
 # Import Decision Engine
 try:
     from decision_engine import DecisionEngine
@@ -113,6 +114,9 @@ class NightWatchman:
         self.behavior_profiler = BehaviorProfiler(data_dir) if self.config.BEHAVIOR_PROFILING_ENABLED else None
         self.context_analyzer = ContextAnalyzer() if self.config.CONTEXT_AWARE_MODERATION_ENABLED else None
         self.adaptive_thresholds = AdaptiveThresholds(data_dir) if self.config.ADAPTIVE_THRESHOLDS_ENABLED else None
+        
+        # Initialize Redis Manager
+        self.redis = RedisManager()
         
         # Initialize Decision Engine
         if DecisionEngine:
@@ -958,7 +962,7 @@ class NightWatchman:
                             return
                     
                     # Check 2: Media spam rate limit (for all users)
-                    if self._check_media_spam_rate(user_id):
+                    if await self._check_media_spam_rate(user_id):
                         await self._handle_media_spam(
                             chat_id=chat_id,
                             message_id=message_id,
@@ -1104,7 +1108,7 @@ class NightWatchman:
                         result['reasons'].append("(High Reputation: Warning avoided)")
 
             # Check if USER was enhanced by admin (skip ban if user is enhanced)
-            is_user_enhanced = user_id in self.enhanced_users
+            is_user_enhanced = (self.redis.enabled and await self.redis.is_user_immune(user_id)) or user_id in self.enhanced_users
             
             # Handle INSTANT BAN cases (porn, casino, aggressive DM, etc.)
             if result.get('instant_ban'):
@@ -1132,7 +1136,7 @@ class NightWatchman:
             # Handle non-Indian language spam (with or without URLs)
             if result.get('non_indian_language'):
                 # Check if USER was enhanced by admin
-                is_user_enhanced = user_id in self.enhanced_users
+                is_user_enhanced = (self.redis.enabled and await self.redis.is_user_immune(user_id)) or user_id in self.enhanced_users
                 
                 # Bypass ban for enhanced users OR users with > 10 rep
                 if is_user_enhanced:
@@ -1187,7 +1191,7 @@ class NightWatchman:
             
             if result['is_spam']:
                 # Check if USER was enhanced by admin (skip ban if user is enhanced)
-                is_user_enhanced = user_id in self.enhanced_users
+                is_user_enhanced = (self.redis.enabled and await self.redis.is_user_immune(user_id)) or user_id in self.enhanced_users
                 
                 # Skip ban for enhanced users OR users with > 10 rep
                 if is_user_enhanced and result['action'] in ['delete_and_ban', 'delete_and_warn']:
@@ -1304,6 +1308,9 @@ class NightWatchman:
             
             # Mark USER as enhanced (protect from bans)
             self.enhanced_users[message_author_id] = True
+            # Also add to Redis
+            if self.redis.enabled:
+                await self.redis.add_immune_user(message_author_id)
             
             logger.info(f"⭐ Admin {reactor_id} enhanced message {message_id} by user {message_author_id} (+15 points, user protected from bans)")
                 
@@ -1665,8 +1672,16 @@ class NightWatchman:
             
             await self._send_message(self.admin_chat_id, report)
     
-    def _check_media_spam_rate(self, user_id: int) -> bool:
+    async def _check_media_spam_rate(self, user_id: int) -> bool:
         """Check if user is sending media too fast (spam rate)"""
+        # USE REDIS if available
+        if self.redis.enabled:
+            key = f"rate:media:{user_id}"
+            # Check if limit exceeded in last minute
+            # This checks > LIMIT in 60s window
+            return await self.redis.check_rate_limit(key, self.config.MAX_MEDIA_PER_MINUTE, 60)
+            
+        # Fallback to in-memory
         now = datetime.now(timezone.utc)
         
         # Get user's recent media timestamps
@@ -2819,10 +2834,13 @@ I am a spam detection bot that protects Telegram groups from:
             # Award enhancement points
             self.reputation.admin_enhancement(target_user_id, target_username, target_name)
             
+            # GRANT IMMUNITY (Redis + Memory)
+            await self.redis.add_immune_user(target_user_id)
+            
             # Send confirmation
             response = await self._send_message(
                 chat_id,
-                f"⭐ <b>{target_name}</b> enhanced by admin! +15 points awarded."
+                f"⭐ <b>{target_name}</b> enhanced by admin! Immune to bans +15 points awarded."
             )
             
             # Delete command and response after 1 minute
@@ -2832,7 +2850,7 @@ I am a spam detection bot that protects Telegram groups from:
                 if response_id:
                     asyncio.create_task(self._delete_message_after_delay(chat_id, response_id, 60))
             
-            logger.info(f"⭐ Admin {user_id} enhanced user {target_user_id} (+15 points)")
+            logger.info(f"⭐ Admin {user_id} enhanced user {target_user_id} (+15 pts + Immunity)")
             
         elif command == '/stats':
             uptime = datetime.now(timezone.utc) - self.stats['start_time']
@@ -3041,7 +3059,7 @@ No CAS ban record found."""
         # EXCEPTION: "Very Severe" violations (Adult content, Bot links) bypass immunity.
         
         # Check if USER was enhanced by admin
-        is_user_enhanced = user_id in self.enhanced_users
+        is_user_enhanced = await self.redis.is_user_immune(user_id)
         
         # Check user reputation
         user_rep = 0
@@ -3132,7 +3150,7 @@ No CAS ban record found."""
         
         # Ban immediately if configured
         # Check if USER was enhanced by admin (skip ban if user is enhanced)
-        is_user_enhanced = user_id in self.enhanced_users
+        is_user_enhanced = await self.redis.is_user_immune(user_id)
         
         # Check user reputation
         user_rep = 0
