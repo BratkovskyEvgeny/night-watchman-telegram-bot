@@ -1124,21 +1124,25 @@ class NightWatchman:
 
                     logger.info(f"✅ Enhanced user {user_name}: Allowed potential spam message")
                     return
-                elif is_high_rep:
+                
+                # Check specifics of the ban trigger
+                ban_triggers = result.get('triggers', [])
+                
+                # RELAXED RULES: Allow "financial_scam" and "promo_spam" for ALL USERS
+                # (This fixes the Mudrex promo links being deleted)
+                # Only ban/delete for SEVERE categories: Adult, Casino, Bot Links, Scammer
+                severe_triggers = ['adult_content', 'casino_spam', 'telegram_bot_link', 'scammer_trigger']
+                is_severe = any(t in severe_triggers for t in ban_triggers)
+                
+                if not is_severe:
+                     # If it's just "financial_scam" or "promo_spam", we ALLOW IT for everyone now.
+                     logger.info(f"✅ Allowed potential spam message for {user_name} (Triggers: {ban_triggers} - Not severe)")
+                     return
+
+                # If high rep, skip ban even for severe stuff (but still delete)
+                if is_high_rep:
                     logger.info(f"🛡️ User {user_name} has high reputation ({user_rep}), skipping instant ban")
-                    # Should we delete? Only if it's REALLY bad (porn/casino). 
-                    # If it's just "promo", maybe let it slide or just warn?
-                    # For now, let's NOT delete if it's just "promo_spam" or "financial_scam" as these have false positives.
-                    ban_triggers = result.get('triggers', [])
-                    
-                    # STRICT DELETE categories (Adult, Casino, Bot Links)
-                    if any(t in ['adult_content', 'casino_spam', 'telegram_bot_link'] for t in ban_triggers):
-                        await self._delete_message(chat_id, message_id)
-                        return
-                    
-                    # For other categories (e.g. "financial_scam", "promo_spam"), 
-                    # TRUST the high rep user and DO NOT DELETE.
-                    logger.info(f"✅ Trusted user {user_name}: Allowed potential spam message ({ban_triggers})")
+                    await self._delete_message(chat_id, message_id)
                     return
                 
                 await self._handle_instant_ban(
