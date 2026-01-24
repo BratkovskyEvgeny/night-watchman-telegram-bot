@@ -1128,15 +1128,10 @@ class NightWatchman:
                 # Check specifics of the ban trigger
                 ban_triggers = result.get('triggers', [])
                 
-                # RELAXED RULES: Allow "financial_scam" and "promo_spam" for ALL USERS
-                # (This fixes the Mudrex promo links being deleted)
-                # Only ban/delete for SEVERE categories: Adult, Casino, Bot Links, Scammer
-                severe_triggers = ['adult_content', 'casino_spam', 'telegram_bot_link', 'scammer_trigger']
-                is_severe = any(t in severe_triggers for t in ban_triggers)
-                
-                if not is_severe:
-                     # If it's just "financial_scam" or "promo_spam", we ALLOW IT for everyone now.
-                     logger.info(f"✅ Allowed potential spam message for {user_name} (Triggers: {ban_triggers} - Not severe)")
+                # REVERTED: Do NOT allow "financial_scam" or "promo_spam" for ALL USERS.
+                # Only allow specific Mudrex content (whitelisted).
+                if "mudrex.go.link" in text.lower() or "mudrex.com" in text.lower():
+                     logger.info(f"✅ Allowed Mudrex link for {user_name} (Whitelisted)")
                      return
 
                 # If high rep, skip ban even for severe stuff (but still delete)
