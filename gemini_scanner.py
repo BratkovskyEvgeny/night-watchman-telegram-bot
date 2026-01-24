@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from typing import Dict, Tuple, Optional
 
 from config import Config
+from redis_manager import RedisManager
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,9 @@ class GeminiScanner:
         self._request_timestamps = deque()
         self.client = None
         
+        # Initialize Redis
+        self.redis = RedisManager()
+        
         if self.enabled and self.api_key:
             try:
                 self.client = genai.Client(api_key=self.api_key)
@@ -51,12 +55,21 @@ class GeminiScanner:
             logger.warning("⚠️ Gemini enabled but no API key found. Disabling.")
             self.enabled = False
             
-    def _check_rate_limit(self) -> bool:
+    async def _check_rate_limit(self) -> bool:
         """
         Check if we have quota to make a request.
-        Removes timestamps older than 60 seconds.
-        Returns True if allowed, False if rate limited.
+        Uses Redis if available, otherwise falls back to local memory.
         """
+        # USE REDIS if available (Global limit across all instances)
+        if self.redis.enabled:
+            # key: gemini:rpm
+            # limit: self.rpm_limit
+            # window: 60 seconds
+            # Returns True if BLOCKED, so we invert it
+            is_limited = await self.redis.check_rate_limit("gemini:rpm", self.rpm_limit, 60)
+            return not is_limited
+
+        # Fallback: In-memory check
         now = time.time()
         
         # Remove timestamps older than 60 seconds
@@ -92,7 +105,7 @@ class GeminiScanner:
                 return None
         
         # Check rate limit
-        if not self._check_rate_limit():
+        if not await self._check_rate_limit():
             logger.debug("⏳ Gemini rate limit reached. Skipping scan.")
             return None
             
