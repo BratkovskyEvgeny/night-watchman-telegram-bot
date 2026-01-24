@@ -2,15 +2,25 @@
 
 **AI-Powered Telegram Superbot** — 24/7 intelligent watchdog with hybrid AI/ML spam detection. Protects your groups from spam, scams, recruitment fraud, and more using advanced Deep Learning + Ensemble ML classifiers.
 
-**Latest Release:** v1.4.0 (January 13, 2026) - 🧠 Adaptive Scam Detection
-- **NEW:** Generic pattern detection - catches ANY casino variant (42casino, 77casino, 88casino, etc.)
-- **NEW:** /newscam command - teach bot about new scams in natural language
-- **NEW:** Hugging Face zero-shot AI - detects completely novel scams
-- **NEW:** Auto-retraining ML - learns immediately from admin feedback
-- **NEW:** Four-tier detection architecture (Regex → ML → Gemini → HF)
-- **NEW:** Pattern extraction engine - extracts keywords from scam descriptions using AI
+**Latest Release:** v1.5.0 (January 24, 2026) - ⚡ Performance & Immunity
+- **NEW:** Redis Integration - Persistent "brain" for the bot (survives restarts!)
+- **NEW:** Permanent immunity for VIPs/Admins (stored in Redis)
+- **NEW:** Global API rate limiting for Gemini AI (saves costs)
+- **NEW:** Whitelisted apps (Apple/Google Play) and Mudrex links
+- **IMPROVED:** Spam detection for "Kathy Lien" & "TrustCryptoPremiums" scams
 
-## 🧠 Adaptive Scam Detection
+## ⚡ Performance & Immunity (v1.5.0)
+
+Night Watchman now uses **Redis** for state management, making it faster, more reliable, and smarter.
+
+### Key Benefits
+1. **Persistent Immunity:** When you `/enhance` a user, they stay immune forever (or until you un-enhance), even if the bot restarts.
+2. **Global Rate Limiting:** Gemini API usage is tracked globally in Redis, preventing expensive over-usage across resets.
+3. **High-Speed Counting:** Media spam detection now uses Redis for microsecond-level speed.
+
+### 🧠 Adaptive Scam Detection (v1.4.0)
+
+Night Watchman features a **truly adaptive** four-tier AI/ML detection system that learns from new threat...
 
 Night Watchman now features a **truly adaptive** four-tier AI/ML detection system that learns from new threats and catches novel variations automatically.
 
@@ -260,6 +270,7 @@ python3 night_watchman.py
 | `ADMIN_USER_IDS` | Comma-separated list of admin user IDs | ✅ Yes |
 | `GEMINI_API_KEY` | Google Gemini API key (free tier) | ⚡ Recommended |
 | `HUGGINGFACE_API_KEY` | Hugging Face API token (free tier) | ⚡ Recommended |
+| `REDIS_URL` | Redis connection URL (e.g., redis://...) | ✅ Yes (v1.5.0+) |
 
 ### Getting API Keys (FREE)
 
