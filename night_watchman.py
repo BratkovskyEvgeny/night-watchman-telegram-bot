@@ -804,14 +804,15 @@ class NightWatchman:
                 if self.config.BLOCK_FORWARDS:
                     # Check if admin
                     is_admin = self.config.FORWARD_ALLOW_ADMINS and await self._is_admin(chat_id, user_id)
-                    
-                    # Check if VIP (reputation level)
-                    is_vip = False
-                    if self.config.FORWARD_ALLOW_VIP and self.config.REPUTATION_ENABLED:
+                    # Check if VIP / admin-enhanced (full immunity)
+                    is_vip = await self._is_vip_user(user_id)
+                    # Check if VIP by reputation level
+                    is_vip_level = False
+                    if self.config.FORWARD_ALLOW_VIP and self.config.REPUTATION_ENABLED and not is_vip:
                         user_rep = self.reputation.get_user_rep(user_id)
-                        is_vip = user_rep.get('level', '') == 'VIP'
+                        is_vip_level = user_rep.get('level', '') == 'VIP'
                     
-                    if is_admin or is_vip:
+                    if is_admin or is_vip or is_vip_level:
                         pass  # Allow admins and VIPs
                     else:
                         # CRITICAL: Analyze forwarded message for spam BEFORE taking action
@@ -1107,22 +1108,14 @@ class NightWatchman:
                         result['action'] = 'delete'
                         result['reasons'].append("(High Reputation: Warning avoided)")
 
-            # Check if USER was enhanced by admin (skip ban if user is enhanced)
-            is_user_enhanced = (self.redis.enabled and await self.redis.is_user_immune(user_id)) or user_id in self.enhanced_users
+            # Check if USER has VIP status (admin-enhanced / high rep = full immunity)
+            is_user_enhanced = await self._is_vip_user(user_id)
             
             # Handle INSTANT BAN cases (porn, casino, aggressive DM, etc.)
             if result.get('instant_ban'):
-                # Skip ban if USER was enhanced by admin OR user has > 10 rep
+                # VIP BYPASS: Skip all actions for admin-enhanced users
                 if is_user_enhanced:
-                    logger.info(f"🛡️ User {user_name} (ID: {user_id}) was enhanced by admin, skipping instant ban")
-                    
-                    ban_triggers = result.get('triggers', [])
-                    # STRICT DELETE for enhanced users too (Account might be compromised)
-                    if any(t in ['adult_content', 'casino_spam', 'telegram_bot_link'] for t in ban_triggers):
-                        await self._delete_message(chat_id, message_id)
-                        return
-
-                    logger.info(f"✅ Enhanced user {user_name}: Allowed potential spam message")
+                    logger.info(f"🛡️ VIP BYPASS: User {user_name} (ID: {user_id}) - full immunity, no action for instant ban")
                     return
                 
                 # Check specifics of the ban trigger
@@ -1153,11 +1146,7 @@ class NightWatchman:
             
             # Handle non-Indian language spam (with or without URLs)
             if result.get('non_indian_language'):
-                # Check if USER was enhanced by admin
-                is_user_enhanced = (self.redis.enabled and await self.redis.is_user_immune(user_id)) or user_id in self.enhanced_users
-                
-                # Bypass ban for enhanced users OR users with > 10 rep
-                if is_user_enhanced:
+                if await self._is_vip_user(user_id):
                     logger.info(f"🛡️ User {user_name} (ID: {user_id}) was enhanced by admin, skipping non-Indian language ban")
                     await self._delete_message(chat_id, message_id)
                     await self._send_message(
@@ -1208,10 +1197,7 @@ class NightWatchman:
                 return
             
             if result['is_spam']:
-                # Check if USER was enhanced by admin (skip ban if user is enhanced)
-                is_user_enhanced = (self.redis.enabled and await self.redis.is_user_immune(user_id)) or user_id in self.enhanced_users
-                
-                # Skip ban for enhanced users OR users with > 10 rep
+                # VIP BYPASS: Skip ban/warn for admin-enhanced users
                 if is_user_enhanced and result['action'] in ['delete_and_ban', 'delete_and_warn']:
                     logger.info(f"🛡️ User {user_name} (ID: {user_id}) was enhanced by admin, skipping spam ban")
                     await self._delete_message(chat_id, message_id)
@@ -1223,6 +1209,9 @@ class NightWatchman:
                 
                 # Handle special mute_24h action from spam detector
                 if result.get('action') == 'mute_24h':
+                     if is_user_enhanced:
+                         logger.info(f"🛡️ VIP BYPASS: User {user_name} - skipping mute for disallowed link")
+                         return
                      logger.warning(f"🔇 Immediate mute for {user_name} due to disallowed link")
                      await self._delete_message(chat_id, message_id)
                      muted = await self._mute_user(chat_id, user_id)
@@ -1627,6 +1616,11 @@ class NightWatchman:
                                   user_name: str, username: str, media_type: str, 
                                   reason: str, caption: str = None):
         """Handle media spam (photos, stickers, GIFs from new users or spam rate)"""
+        # VIP BYPASS: Admin-enhanced users get full immunity
+        if await self._is_vip_user(user_id):
+            logger.info(f"🛡️ VIP BYPASS: User {user_name} (ID: {user_id}) - skipping media spam action")
+            return
+        
         self.stats['spam_detected'] += 1
         
         # Track in analytics
@@ -2253,6 +2247,36 @@ I am a spam detection bot that protects Telegram groups from:
                 return True
         return False
     
+    def _is_admin_enhanced(self, user_id: int) -> bool:
+        """
+        Check if user was explicitly enhanced by admin (/enhance or emoji reaction).
+        Admin-enhanced users get FULL immunity - no exceptions, even for very severe content.
+        """
+        if user_id in self.enhanced_users:
+            return True
+        if self.config.REPUTATION_ENABLED:
+            key = str(user_id)
+            if key in self.reputation.data.get('users', {}):
+                if self.reputation.data['users'][key].get('is_admin_enhanced', False):
+                    return True
+        return False
+    
+    async def _is_vip_user(self, user_id: int) -> bool:
+        """
+        Check if user has immunity (VIP treatment) from Night Watchman actions.
+        Includes: admin-enhanced users (full immunity) OR high-rep users (>10 points, leniency).
+        """
+        # 1. Admin-enhanced = full immunity (sync check)
+        if self._is_admin_enhanced(user_id):
+            return True
+        # 2. Redis immune set (persistent, from /enhance and emoji reaction)
+        if self.redis.enabled and await self.redis.is_user_immune(user_id):
+            return True
+        # 3. High rep (points > 10) = leniency for most actions
+        if self.config.REPUTATION_ENABLED and self.reputation.is_immune(user_id):
+            return True
+        return False
+    
     async def _download_photo(self, file_id: str) -> Optional[bytes]:
         """Download a photo from Telegram using file_id"""
         try:
@@ -2352,6 +2376,11 @@ I am a spam detection bot that protects Telegram groups from:
     async def _handle_bad_language(self, chat_id: int, message_id: int, user_id: int,
                                    user_name: str, username: str, text: str, result: Dict):
         """Handle bad language detection"""
+        # VIP BYPASS: Admin-enhanced users get full immunity - no action taken
+        if await self._is_vip_user(user_id):
+            logger.info(f"🛡️ VIP BYPASS: User {user_name} (ID: {user_id}) - skipping bad language action")
+            return
+        
         self.stats['bad_language_detected'] += 1
         
         # Track in analytics
@@ -2852,8 +2881,9 @@ I am a spam detection bot that protects Telegram groups from:
             # Award enhancement points
             self.reputation.admin_enhancement(target_user_id, target_username, target_name)
             
-            # GRANT IMMUNITY (Redis + Memory)
+            # GRANT IMMUNITY (Redis + Memory) - VIP bypass applies everywhere
             await self.redis.add_immune_user(target_user_id)
+            self.enhanced_users[target_user_id] = True
             
             # Send confirmation
             response = await self._send_message(
@@ -3071,26 +3101,38 @@ No CAS ban record found."""
         elif 'telegram_bot_link' in triggers:
             ban_category = 'bot'
         
-        # IMMUNITY CHECK:
-        # High reputation users (>10 rep) or Admin Enhanced users are IMMUNE to most bans.
-        # They only get deleted + warned, NOT banned.
-        # EXCEPTION: "Very Severe" violations (Adult content, Bot links) bypass immunity.
+        # VIP BYPASS: Admin-enhanced users get FULL immunity from ALL actions.
+        # No exceptions - they are never banned, muted, or warned (even adult content, bot links).
+        is_admin_enhanced = (
+            self._is_admin_enhanced(user_id) or
+            (self.redis.enabled and await self.redis.is_user_immune(user_id))
+        )
+        if is_admin_enhanced:
+            logger.info(f"🛡️ VIP BYPASS: User {user_name} (ID: {user_id}) is admin-enhanced - full immunity, no action taken.")
+            if self.admin_chat_id:
+                forward_indicator = "📤 <b>(Forwarded)</b> " if is_forwarded else ""
+                report = f"""🛡️ <b>VIP Bypass - No Action</b>
+{forward_indicator}
+👤 User: {user_name} (@{username or 'N/A'})
+🆔 User ID: <code>{user_id}</code>
+💬 Chat: <code>{chat_id}</code>
+⚠️ Triggers: {', '.join(triggers)}
+
+✅ Admin-enhanced user - full immunity applied."""
+                await self._send_message(self.admin_chat_id, report)
+            return
         
-        # Check if USER was enhanced by admin
-        is_user_enhanced = await self.redis.is_user_immune(user_id)
-        
-        # Check user reputation
+        # Reputation leniency for non-VIP users: >10 rep = spare from ban (warn instead)
         user_rep = 0
         if self.config.REPUTATION_ENABLED:
             user_rep_data = self.reputation.get_user_rep(user_id)
             user_rep = user_rep_data.get('points', 0)
         
-        # Define "Very Severe" triggers that bypass immunity
         very_severe_triggers = ['adult_content', 'telegram_bot_link']
         is_very_severe = any(t in very_severe_triggers for t in triggers)
         
-        # Skip ban if USER was enhanced by admin OR user has > 10 rep (unless very severe)
-        if (is_user_enhanced or user_rep > 10) and not is_very_severe:
+        # Skip ban for high-rep users (unless very severe)
+        if user_rep > 10 and not is_very_severe:
             # SPARE THE USER
             logger.info(f"🛡️ IMMUNITY APPLIED: User {user_name} (ID: {user_id}) spared from ban due to high reputation/enhancement.")
             
@@ -3166,26 +3208,9 @@ No CAS ban record found."""
         if deleted:
             self.stats['messages_deleted'] += 1
         
-        # Ban immediately if configured
-        # Check if USER was enhanced by admin (skip ban if user is enhanced)
-        is_user_enhanced = await self.redis.is_user_immune(user_id)
-        
-        # Check user reputation
-        user_rep = 0
-        if self.config.REPUTATION_ENABLED:
-            user_rep_data = self.reputation.get_user_rep(user_id)
-            user_rep = user_rep_data.get('points', 0)
-        
-        # Skip ban if USER was enhanced by admin OR user has > 10 rep
-        if is_user_enhanced:
-            logger.info(f"🛡️ User {user_name} (ID: {user_id}) was enhanced by admin, skipping non-Indian language ban")
-            await self._send_message(
-                chat_id,
-                f"⚠️ <b>{user_name}</b>, non-Indian languages are not allowed here."
-            )
-            return
-        elif user_rep > 10:
-            logger.info(f"🛡️ User {user_name} has high reputation ({user_rep}), skipping non-Indian language ban")
+        # VIP BYPASS: Admin-enhanced / high-rep users get full immunity
+        if await self._is_vip_user(user_id):
+            logger.info(f"🛡️ VIP BYPASS: User {user_name} (ID: {user_id}) - skipping non-Indian language ban")
             await self._send_message(
                 chat_id,
                 f"⚠️ <b>{user_name}</b>, non-Indian languages are not allowed here."
