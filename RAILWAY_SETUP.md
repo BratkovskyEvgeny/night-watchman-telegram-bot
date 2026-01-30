@@ -1,6 +1,24 @@
 # Railway Deployment Setup for Night Watchman
 
-To enable the advanced Gemini AI spam scanning on Railway, you need to add your API key as an environment variable.
+## Required: Redis
+
+Redis is **required** for VIP immunity (enhanced users) and Gemini rate limiting.
+
+1. In your Railway project, click **New** → **Database** → **Redis**
+2. After Redis is provisioned, go to the Redis service → **Variables** and copy `REDIS_URL`
+3. In your **Night Watchman** service → **Variables**, add:
+   - **Variable Name:** `REDIS_URL`
+   - **Value:** `${{Redis.REDIS_URL}}` (or paste the full URL)
+
+Without Redis, VIP immunity does not persist across restarts.
+
+**How Redis works:** When an admin uses **/enhance** or ⭐ on a user, that user ID is stored in Redis set `nightwatchman:immune_users`. On bot start we load all IDs from Redis so enhanced users keep total freedom after restarts. Log at startup: `🛡️ Immunity: loaded N enhanced users from Redis`.
+
+---
+
+## Gemini AI Spam Scanning
+
+To enable the advanced Gemini AI spam scanning on Railway, add your API key as an environment variable.
 
 ## Step Using Railway Dashboard:
 
