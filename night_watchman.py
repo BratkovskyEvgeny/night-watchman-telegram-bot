@@ -678,20 +678,14 @@ class NightWatchman:
             
             # Skip messages sent by a channel (channel posts forwarded to linked group).
             # When a channel owner posts AS the channel, Telegram sets:
-            #   - from.id = 777000  (the "Telegram" service account for anonymous channel senders)
+            #   - from.id = 777000  (the "Telegram" service account for channel auto-forwards)
             #   - sender_chat       (the channel that sent the message)
-            # Both cases must be treated as trusted/admin and never moderated.
+            # Both cases must be treated as trusted and never moderated.
             sender_chat = message.get('sender_chat')
-            is_channel_post = bool(sender_chat) or user_id == 777000
-            logger.info(
-                f"🔍 Channel check: user_id={user_id}, type={type(user_id).__name__}, "
-                f"sender_chat={sender_chat}, is_channel_post={is_channel_post}"
-            )
-            if is_channel_post:
-                sender_chat_title = sender_chat.get('title', '') if isinstance(sender_chat, dict) else 'anonymous channel'
+            if sender_chat or user_id == 777000:
+                sender_chat_title = sender_chat.get('title', '') if isinstance(sender_chat, dict) else 'channel'
                 logger.info(
-                    f"📢 Channel post detected (user_id={user_id}) "
-                    f"from '{sender_chat_title}' — skipping moderation"
+                    f"📢 Channel post from '{sender_chat_title}' (user_id={user_id}) — skipping moderation"
                 )
                 return
             
