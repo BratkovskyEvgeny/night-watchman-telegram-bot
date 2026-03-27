@@ -676,6 +676,21 @@ class NightWatchman:
                     await self._handle_private_message(chat_id, user_id, text)
                 return
             
+            # Skip messages sent by a channel (channel posts forwarded to linked group).
+            # When a channel owner posts AS the channel, Telegram sets:
+            #   - from.id = 777000  (the "Telegram" service account for anonymous channel senders)
+            #   - sender_chat       (the channel that sent the message)
+            # Both cases must be treated as trusted/admin and never moderated.
+            sender_chat = message.get('sender_chat', {})
+            if sender_chat or user_id == 777000:
+                sender_chat_id = sender_chat.get('id') if sender_chat else None
+                sender_chat_title = sender_chat.get('title', '') if sender_chat else 'anonymous channel'
+                logger.info(
+                    f"📢 Channel post detected (sender_chat={sender_chat_id}, user_id={user_id}) "
+                    f"from '{sender_chat_title}' — skipping moderation"
+                )
+                return
+            
             # Handle /analytics from admins in group (delete command, DM result)
             if text.startswith('/analytics'):
                 # Check if user is group admin
