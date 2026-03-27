@@ -4,6 +4,7 @@ Telegram Spam Detection & Moderation
 """
 
 import os
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -15,27 +16,22 @@ class Config:
     ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")  # Where to send spam reports
     
     # Spam Detection Settings
+    # NOTE: Keep keywords SPECIFIC to avoid false positives on normal messages.
+    # Short/generic words like "casino", "per day", "send me" are NOT here — they're too broad.
     SPAM_KEYWORDS = [
-        # Crypto scams (English)
-        "dm me for", "dm for gains", "100x", "guaranteed profit",
-        "free airdrop", "claim now", "act fast", "limited time",
-        "wallet connect", "validate wallet", "sync wallet",
-        # Common spam patterns (English)
-        "click here", "join now", "hurry up", "don't miss",
-        "make money fast", "work from home", "be your own boss",
-        # Suspicious phrases (English)
-        "send me", "invest with me", "trading signals",
+        # Crypto scams (English) — specific phrases only
+        "dm me for gains", "guaranteed profit", "100x guaranteed",
+        "free airdrop", "claim now", "wallet connect", "validate wallet", "sync wallet",
+        "make money fast", "be your own boss",
+        "invest with me", "trading signals",
         "binary options", "forex signals",
         
-        # Gemini Bait: Keywords that might be safe but warrant AI inspection
-        # These give a low score (0.3) which triggers Gemini scan if enabled
+        # AI scan triggers (low score 0.3 — triggers AI scan)
         "check bio", "link in bio", "bio link", "see bio",
-        "sniper bot", "mev bot", "front run bot", 
-        "win rate", "winning rate", "accuracy", 
-        "backtest", "strategies", "automated system",
+        # NOTE: "sniper bot", "mev bot", "front run bot" removed — legitimate Web3 topics
         "passive income", "steady income",
 
-        # New scam patterns (Dec 2025)
+        # Specific scam phrases
         "trading account is thriving",
         "provided financial assistance",
         "withdrawals are straightforward",
@@ -50,101 +46,155 @@ class Config:
         "works 24/5 on mt4 and mt5",
         "funded account challenges",
         "send me a dm for more proof",
-        # Kathy Lien / Financial Assistance Scam
         "financial assistance", "seamless withdrawal", "transformed my trading journey",
-        "trading journey! her", "pivotal, and i appreciate",
-        # Indian Group Scam
-        "trustcryptopremiums", "@trustcryptopremiums",
         
-        # AGGRESSIVE DM/CONTACT PATTERNS (INSTANT BAN)
-        "dm me now", "dm me", "message me now", "message me",
-        "inbox me now", "inbox me", "contact me now",
-        "text me now", "text me", "pm me now", "pm me",
-        "hit me up", "reach out now", "reach out to me",
-        "slide into", "drop a dm", "send a dm",
+        # Aggressive DM patterns (specific)
+        "dm me now", "inbox me now", "message me now",
+        "hit me up", "slide into",
+        "drop a dm", "send a dm",
         
-        # Trading/Forex Scam Patterns
+        # Trading/Forex Scam Patterns (specific)
         "consistently profitable", "consistently profit",
-        "straight months", "trading smart", "smart strategy",
-        "trading emotionally", "level up your trading",
+        "level up your trading",
         "profitable for over", "profitable strategy",
         "proven strategy", "proven method", "proven system",
         
-        # Casino/Betting Spam (INSTANT BAN)
-        "big wins", "promo code", "welcome bonus", "1win",
-        "casino", "betting", "jackpot", "slot", "roulette",
-        "blackjack", "poker bonus", "free spins", "cash out",
-        "win big", "massive win", "hit a win", "start cashing",
+        # Casino/Betting Spam (specific phrases)
+        "welcome bonus", "1win", "1xbet", "melbet", "mostbet",
+        "casino bonus", "poker bonus", "free spins",
         "winning streak", "top prize", "grab bonus", "telegram bonus",
-        "enter code", "heating up", "could be yours", "get bonus",
-        "$200 free", "$100 free", "$500 free", "free $",
-        "52casino", "reward received", "successfully received",  # NEW: 52casino specific
-        "sign up here:", "dont forget", "start playing",  # NEW: Casino CTAs
+        "$200 free", "$100 free", "$500 free",
+        "52casino", "reward received",
+        "sign up here:", "start playing today",
         
         # Adult/Porn (INSTANT BAN)
         "xxx", "porn", "p-o-r-n", "x x x", "p o r n",
-        "onlyfans", "only fans", "18+", "adult content",
+        "onlyfans", "only fans", "adult content",
         "nudes", "sexy video", "hot video",
         
-        # Hindi/Hinglish Spam Patterns
-        "dm karo", "dm kijiye", "message karo", "contact karo",
-        "inbox karo", "inbox me aao", "aaja inbox",
-        "paisa kamao", "paise kamao", "ghar baithe kamao", "lakho kamao",
-        "jaldi karo", "abhi join karo", "miss mat karo",
-        "free mein", "muft mein", "guaranteed return",
-        "double paisa", "paise double", "roz kamao", "daily kamao",
-        "invest karo", "trading sikho", "profit pakka",
-        "airdrop milega", "free crypto", "free coins",
-        "whatsapp karo", "call karo", "telegram pe aao",
-        "scheme join karo", "yahan click karo", "link pe click",
-        "limited offer", "jaldi grab karo", "sirf aaj",
-        "aaja dm", "dm kar", "inbox kar", "message kar",
+        # Russian Spam Patterns — SPECIFIC phrases only (avoid generic words)
+        "пишите в лс", "пишите в личку",
+        "напишите в лс", "напишите в личку",
+        "пиши в лс", "пиши в личку",
+        "стучите в лс", "стучите в личку",
+        "заработок в день", "заработок в месяц",
+        "зарабатывай дома", "зарабатывай из дома",
+        "пассивный заработок",
+        "гарантированный доход", "гарантированная прибыль",
+        "торговые сигналы", "сигналы для торговли",
+        "бинарные опционы", "форекс сигналы",
+        "инвестируй со мной", "вложи и получи",
+        "удвоение депозита", "удвоение вклада",
+        "криптовалюта заработок", "крипто заработок",
+        "бесплатный аирдроп", "получи токены бесплатно",
+        "бонус при регистрации",
+        "казино бонус", "покер бонус", "фриспины",
+        "большой выигрыш", "выиграй сейчас",
+        "ставка на спорт", "спортивные ставки",
+        "1вин", "1хбет", "мелбет", "мостбет",
+        "набор в команду", "набираю команду",
+        "лёгкий заработок", "легкий заработок",
+        "обучу бесплатно за результат",
+        "ежедневные выплаты", "выплаты каждый день",
+        "от 500 рублей в день", "от 1000 рублей в день",
+        "от $100 в день", "от $200 в день",
+        "схема заработка", "рабочая схема заработка",
+        "нажми на ссылку", "перейди по ссылке",
+        "подпишись на канал для заработка",
+        "только сегодня успей", "мест осталось мало",
+        "телеграм канал для заработка",
+        "инвестиционный проект", "хайп проект", "hyip",
+        "финансовая пирамида",
+        "отмывание денег", "обнал",
+        "интим услуги",
+        "знакомства для взрослых", "горячие фото",
+        "горячие видео", "откровенные фото",
         
-        # Recruitment/Job Scam Patterns (new)
+        # Recruitment/Job Scam Patterns (specific)
         "opening recruitment", "opening a recruitment",
         "recruiting for a project", "recruitment for a project",
-        "remote project", "completely remote",
-        "actions according to", "tasks according to instructions",
         "earnings from $", "income from $", "earn from $",
-        "per day", "per week",  # Only triggers when combined with earnings context
         "putting together a team", "putting together a small team",
-        "join a project", "join my team",
-        "looking for partners", "looking for people", "looking for several",
-        "looking for responsible", "looking for 2-3 people", "looking for two people",
-        "full training and support", "we provide training",
-        "simple tasks", "clear instructions",
+        "looking for 2-3 people", "looking for two people",
+        "full training and support",
         "daily payments", "everything is transparent",
-        "1-2 hours per day", "1.5-2 hours per day", "1–2 hours",
+        "1-2 hours per day", "1.5-2 hours per day",
         "send me a private message", "write to me at",
+        
+        # ==================== ЗАПРЕЩЁННЫЕ ТЕМЫ ====================
+        # Эти слова дают низкий балл (0.3) и триггерят проверку через Mistral AI
+        # Они НЕ вызывают автоматический бан — только флаг для проверки
+        
+        # Политика (триггер для AI-проверки)
+        "путин", "лукашенко", "зеленский",
+        "кгб", "фсб", "мвд", "нквд",
+        "украина", "донбасс", "крым",
+        "нато", "санкции против",
+        "война на украине", "спецоперация",
+        "оппозиция", "протест", "митинг",
+        "политический заключённый", "политзаключённый",
+        
+        # Экстремизм / терроризм (триггер для AI-проверки)
+        "джихад", "аллах акбар",
+        "взрывчатка", "самодельная бомба",
+        "теракт", "террористическая атака",
+        "вербовка в", "вступай в отряд",
+        
+        # Наркотики (триггер для AI-проверки)
+        "купить наркотики", "продам наркотики",
+        "купить мефедрон", "купить амфетамин",
+        "купить кокаин", "купить героин",
+        "купить марихуану", "купить гашиш",
+        "закладка наркотики", "закладчик",
+        "купить спайс", "купить соль",
+        "наркотики доставка", "наркотики телеграм",
+        
+        # ЛГБТ-пропаганда (триггер для AI-проверки)
+        "лгбт пропаганда", "гей пропаганда",
+        "трансгендер пропаганда",
+        
+        # Нацизм / расизм (триггер для AI-проверки)
+        "нацизм", "нацист", "фашизм", "фашист",
+        "белое превосходство", "арийская раса",
+        "хайль", "свастика",
+        "расизм", "расист",
+        "антисемитизм", "антисемит",
+        
+        # Секс / порно (триггер для AI-проверки — явные уже в INSTANT_BAN)
+        "секс видео", "секс фото", "секс чат",
+        "виртуальный секс", "секс за деньги",
+        "проститутка", "эскорт",
+        "детское порно", "педофилия",
     ]
     
     # INSTANT BAN keywords (no warnings, immediate ban)
+    # NOTE: Only VERY SPECIFIC phrases here — avoid generic words that appear in normal conversation
     INSTANT_BAN_KEYWORDS = [
         # Adult/Porn
         "xxx", "porn", "p-o-r-n", "x x x", "p o r n",
         "onlyfans", "only fans", "nudes",
-        # Casino/Betting (specific, not generic)
+        # Casino/Betting (specific brand names and phrases)
         "1win", "1xbet", "xwin", "22bet", "melbet", "mostbet",
-        "52casino", "52 casino", ".52casino.cc", "52casino.cc",  # NEW: Specific casino from screenshots
+        "52casino", "52 casino", ".52casino.cc", "52casino.cc",
         "casino bonus", "welcome bonus", "free spins",
         "winning streak", "top prize", "grab bonus", "telegram bonus",
-        "on your balance", "get your balance", "activate promo",
+        "on your balance", "activate promo",
         "play anywhere", "bet220", "promocasbot",
-        "reward received", "your reward has been", "reward has been successfully",  # NEW: Casino reward messages
-        "congratulations!", "won $100", "won $200", "$100 instantly",  # NEW: Specific amounts (note: removed space after !)
-        "promo code \"lucky", "enter promo code", "dont forget: enter promo",  # NEW: Promo code patterns
-        "start playing today", "cash out",  # NEW: Casino CTAs (removed generic 'withdraw')
-        # Scam patterns
-        "dm me now", "inbox me", "message me now",
+        "reward received", "your reward has been", "reward has been successfully",
+        "won $100", "won $200", "$100 instantly",
+        "promo code \"lucky", "enter promo code", "dont forget: enter promo",
+        "start playing today",
+        # Scam DM patterns (specific)
+        "dm me now", "inbox me now", "message me now",
         # Recruitment scam instant ban patterns
-        "write \"+\"", "leave a \"+\"", "send \"+\"",  # Classic recruitment scam CTA
+        "write \"+\"", "leave a \"+\"", "send \"+\"",
         "write + in private", "leave + here",
-        "earnings from $1", "income: starting at $",  # Specific dollar claims
+        "earnings from $1", "income: starting at $",
         "earn a steady extra $", "extra $500", "extra $1,000",
         "$120 per day", "$190 per day", "$250 per day",
         "$1050 per week", "$1,050 per week", "$1000 per week",
 
-        # New scam patterns (Dec 2025)
+        # Specific scam phrases
         "trading account is thriving",
         "provided financial assistance",
         "withdrawals are straightforward",
@@ -159,19 +209,87 @@ class Config:
         "works 24/5 on mt4 and mt5",
         "funded account challenges",
         "send me a dm for more proof",
+        
+        # Russian instant ban patterns (мгновенный бан — только специфические фразы)
+        "пишите в лс срочно", "пишите в личку срочно",
+        "напишите мне срочно",
+        "1вин", "1хбет", "мелбет", "мостбет", "1win.ru", "1xbet.ru",
+        "казино бонус", "фриспины",
+        "вы выиграли", "поздравляем вы выиграли",
+        "активируй промокод", "введи промокод",
+        "заработок от $120 в день", "заработок от $190 в день",
+        "заработок от $250 в день",
+        "доход от 1000 в день", "доход от 5000 в день",
+        "напиши \"+\"", "оставь \"+\"", "напиши плюс",
+        "интим фото", "интим видео",
+        "эскорт услуги", "услуги интим",
+        "обнал", "обналичивание", "отмыв денег",
+        "хайп проект", "hyip проект",
+        "финансовая пирамида",
+        
+        # ==================== ЗАПРЕЩЁННЫЙ КОНТЕНТ — МГНОВЕННЫЙ БАН ====================
+        
+        # Детское порно / педофилия (абсолютный запрет)
+        "детское порно", "детская порнография", "педофилия",
+        "child porn", "child pornography", "pedophilia",
+        "cp telegram", "cp channel",
+        
+        # Терроризм / экстремизм (абсолютный запрет)
+        "аллах акбар смерть", "смерть неверным",
+        "взорвать", "самодельная бомба", "изготовить взрывчатку",
+        "вступай в игил", "вступай в isis", "вступай в даиш",
+        "джихад против", "газават",
+        "убить президента", "убить политика",
+        "теракт планируем", "готовим теракт",
+        
+        # Нацизм / фашизм (абсолютный запрет)
+        "хайль гитлер", "heil hitler",
+        "зиг хайль", "sieg heil",
+        "нацисты победят", "слава нацистам",
+        "смерть евреям", "смерть чёрным", "смерть мусульманам",
+        "death to jews", "death to blacks",
+        "белое превосходство", "white supremacy",
+        "арийская раса превосходит",
+        
+        # Продажа наркотиков (абсолютный запрет)
+        "купить мефедрон", "продам мефедрон",
+        "купить амфетамин", "продам амфетамин",
+        "купить кокаин", "продам кокаин",
+        "купить героин", "продам героин",
+        "купить спайс", "продам спайс",
+        "купить соль наркотик", "продам соль наркотик",
+        "закладка наркотики", "закладчик наркотики",
+        "наркотики доставка", "наркотики телеграм",
+        "купить марихуану доставка", "купить гашиш доставка",
+        "mdma купить", "lsd купить", "экстази купить",
+        
+        # Мошенничество с документами
+        "купить паспорт", "продам паспорт",
+        "купить диплом", "продам диплом",
+        "купить права", "продам права",
+        "поддельные документы", "фальшивые документы",
+        
+        # Оружие (незаконная продажа)
+        "купить оружие", "продам оружие",
+        "купить пистолет нелегально", "продам пистолет нелегально",
+        "купить автомат нелегально",
     ]
     
     # Whitelisted terms - NEVER trigger spam even if they contain keywords
     # This prevents false positives for legitimate questions
     WHITELISTED_PHRASES = [
-        "mudrex promo",
-        "promo code in mudrex",
-        "promo codes in mudrex", 
-        "mudrex referral",
-        "how to get promo",
-        "where to find promo",
-        "any promo code",
-        "promo code for mudrex",
+        # Legitimate questions about promo codes
+        "как получить промокод",
+        "где найти промокод",
+        "есть ли промокод",
+        "промокод для",
+        "реферальный код для",
+        "как использовать промокод",
+        # Legitimate trading discussion
+        "стратегия торговли",
+        "торговая стратегия",
+        "анализ рынка",
+        "технический анализ",
     ]
     
     # Money/Dollar emojis - suspicious when used by new users
@@ -194,13 +312,135 @@ class Config:
     
     # Whitelisted domains (always allowed)
     WHITELISTED_DOMAINS = [
-        "mudrex.com",
-        "mudrex.go.link",
+        # Crypto / Finance
         "coingecko.com",
         "coinmarketcap.com",
         "tradingview.com",
-        "apps.apple.com", # App Store
-        "play.google.com", # Play Store
+        "binance.com",
+        "bybit.com",
+        "okx.com",
+        "huobi.com",
+        "kucoin.com",
+        "gate.io",
+        "kraken.com",
+        "coinbase.com",
+        "etherscan.io",
+        "bscscan.com",
+        "polygonscan.com",
+        "solscan.io",
+        "opensea.io",
+        "uniswap.org",
+        "aave.com",
+        "compound.finance",
+        
+        # App Stores
+        "apps.apple.com",
+        "play.google.com",
+        
+        # Tech / Dev resources (для канала про разработку, AI и Web3)
+        "github.com",
+        "gitlab.com",
+        "stackoverflow.com",
+        "docs.python.org",
+        "python.org",
+        "golang.org",
+        "go.dev",
+        "rust-lang.org",
+        "doc.rust-lang.org",
+        "soliditylang.org",
+        "docs.soliditylang.org",
+        "npmjs.com",
+        "pypi.org",
+        "crates.io",
+        "docker.com",
+        "hub.docker.com",
+        "kubernetes.io",
+        "aws.amazon.com",
+        "cloud.google.com",
+        "azure.microsoft.com",
+        "vercel.com",
+        "netlify.com",
+        "railway.app",
+        "heroku.com",
+        
+        # AI / ML / NLP / LLM resources
+        "openai.com",
+        "anthropic.com",
+        "mistral.ai",
+        "huggingface.co",
+        "arxiv.org",
+        "paperswithcode.com",
+        "langchain.com",
+        "n8n.io",
+        "langflow.org",
+        "llamaindex.ai",
+        "docs.llamaindex.ai",
+        "python.langchain.com",
+        "js.langchain.com",
+        "ollama.ai",
+        "ollama.com",
+        "groq.com",
+        "together.ai",
+        "replicate.com",
+        "cohere.com",
+        "ai.google.dev",
+        "deepmind.google",
+        "pytorch.org",
+        "tensorflow.org",
+        "keras.io",
+        "scikit-learn.org",
+        "pandas.pydata.org",
+        "numpy.org",
+        "matplotlib.org",
+        "jupyter.org",
+        "kaggle.com",
+        "wandb.ai",
+        "mlflow.org",
+        "dvc.org",
+        "ray.io",
+        "modal.com",
+        "bentoml.com",
+        "fastapi.tiangolo.com",
+        "pydantic.dev",
+        "docs.pydantic.dev",
+        "celery.readthedocs.io",
+        "redis.io",
+        "postgresql.org",
+        "mongodb.com",
+        "clickhouse.com",
+        "qdrant.tech",
+        "weaviate.io",
+        "pinecone.io",
+        "chroma.run",
+        "milvus.io",
+        
+        # Web3 / Blockchain
+        "ethereum.org",
+        "solana.com",
+        "polygon.technology",
+        "hardhat.org",
+        "truffle-suite.io",
+        "web3.js.readthedocs.io",
+        "ethers.io",
+        "openzeppelin.com",
+        "chainlink.com",
+        "ipfs.io",
+        
+        # News / Media
+        "ru.wikipedia.org",
+        "wikipedia.org",
+        "rbc.ru",
+        "kommersant.ru",
+        "vedomosti.ru",
+        "tass.ru",
+        "ria.ru",
+        "interfax.ru",
+        "cbr.ru",
+        "habr.com",
+        "medium.com",
+        "dev.to",
+        "youtube.com",
+        "youtu.be",
     ]
     
     # New user settings
@@ -222,23 +462,40 @@ class Config:
     BAD_LANGUAGE_ENABLED = True
     BAD_LANGUAGE_WORDS = [
         # English Profanity
-        "fuck", "shit", "damn", "bitch", "asshole", "bastard",
-        "crap", "piss", "hell", "dick", "cock", "pussy",
+        "fuck", "shit", "bitch", "asshole", "bastard",
+        "dick", "cock", "pussy",
         
-        # Hindi/Hinglish Profanity & Abuse
-        "madarchod", "bhenchod", "chutiya", "gaandu", "haramkhor",
-        "randi", "saala", "saali", "bhosdike", "lawda", "loda",
-        "chut", "gand", "behenchod", "mc", "bc", "bkl",
-        "kutte", "kutta", "kamina", "kamini", "harami",
-        "chodu", "chodna", "chudai", "lund", "lundura",
-        "jhant", "jhatu", "ullu", "gadha", "bakchod", "bakchodi",
-        "madar", "behen", "bhosda", "bhosdika", "bhosdiwala",
-        "tatti", "moot", "suvar", "suar", "hijda", "chakka",
-        "dalla", "dallal", "rakhail", "pataka", "raand",
-        
-        # Hinglish variations (romanized)
-        "madarc**d", "behen c**d", "chu***a", "g**du",
-        "b***i", "r**di", "l**d", "bh**d",
+        # Russian Profanity — мат (корневые слова, покрывают большинство форм)
+        "блядь", "блять", "блядина",
+        "пизда", "пиздец", "пиздить", "пиздёж", "пиздабол",
+        "ёбаный", "ёб твою", "ёбнутый", "ёблан", "еблан",
+        "хуй", "хуйня", "хуёво", "хуйло", "хуесос",
+        "залупа",
+        "мудак", "мудила", "мудозвон",
+        "сука", "сучка",
+        "ублюдок",
+        "пидор", "пидорас",
+        "шлюха", "шлюшка",
+        "долбоёб",
+        "нахуй", "на хуй",
+        "иди нахуй", "пошёл нахуй", "пошла нахуй",
+        "ёб твою мать", "твою мать",
+        "говно", "говнюк",
+        "жопа",
+        "задница",
+        "мразь",
+        "падла",
+        "гнида",
+        "козёл",
+        "сволочь",
+        "подонок",
+        "тварь",
+        "скотина",
+        "урод",
+        "чмо",
+        "лошара",
+        "выблядок",
+        "гандон",
     ]
     BAD_LANGUAGE_ACTION = "delete_and_warn"  # "warn", "delete", "delete_and_warn", "mute"
     
@@ -296,25 +553,29 @@ class Config:
     
     # Welcome Message
     SEND_WELCOME_MESSAGE = False  # Don't auto-send welcome (users can use /guidelines)
-    WELCOME_MESSAGE = """👋 Welcome to the group!
+    WELCOME_MESSAGE = """👋 Добро пожаловать в группу!
 
-📋 <b>Rules:</b>
-• No spam or scams
-• No bad language
-• Be respectful
-• No advertising without permission
+📋 <b>Правила:</b>
+• Никакого спама и мошенничества
+• Никакой нецензурной лексики
+• Уважайте друг друга
+• Реклама без разрешения запрещена
 
-⚠️ Violations will result in warnings, mutes, or bans."""
+⚠️ Нарушения влекут предупреждения, мут или бан."""
     
     # Auto-delete join/exit messages
     DELETE_JOIN_EXIT_MESSAGES = True
     
-    # Non-Indian Language Detection
-    BLOCK_NON_INDIAN_LANGUAGES = True
+    # Foreign Language Detection
+    # Only Russian and English are allowed in this group.
+    # Messages in Chinese, Korean, Arabic, Japanese, Thai, Vietnamese will be blocked.
+    BLOCK_NON_INDIAN_LANGUAGES = True  # Enabled — block non-Russian/non-English languages
     NON_INDIAN_LANGUAGES = [
-        'chinese', 'korean', 'russian', 'japanese', 'arabic', 'thai', 'vietnamese'
+        'chinese', 'korean', 'japanese', 'arabic', 'thai', 'vietnamese'
+        # Note: 'russian' is NOT in this list — it's the primary language of this group
+        # English is also allowed (Latin script)
     ]
-    AUTO_BAN_NON_INDIAN_SPAM = True  # Auto-ban if non-Indian language + suspicious content
+    AUTO_BAN_NON_INDIAN_SPAM = True  # Auto-ban if foreign language + suspicious content
     
     # Bot Message Auto-Delete
     AUTO_DELETE_BOT_MESSAGES = True
@@ -431,165 +692,173 @@ class Config:
     # Also match /funding_btc, /funding_eth, etc. (handled in code)
     
     # Enable crypto command redirection
-    CRYPTO_COMMAND_REDIRECT_ENABLED = True
+    CRYPTO_COMMAND_REDIRECT_ENABLED = False  # Disabled for Russian group (no Mudrex topics)
     
     # Topic ID for Market Intelligence (where crypto price commands should go)
-    MARKET_INTELLIGENCE_TOPIC_ID = 89270
-    MARKET_INTELLIGENCE_TOPIC_NAME = "Mudrex Market Intelligence"
-    MARKET_INTELLIGENCE_TOPIC_LINK = "https://t.me/officialmudrex/89270"
+    MARKET_INTELLIGENCE_TOPIC_ID = int(os.getenv("MARKET_TOPIC_ID", "0"))
+    MARKET_INTELLIGENCE_TOPIC_NAME = "Рынок и аналитика"
+    MARKET_INTELLIGENCE_TOPIC_LINK = ""
     
     # Topic ID for Futures Funding Alerts (where funding commands should go)
-    FUNDING_ALERTS_TOPIC_ID = 96073
-    FUNDING_ALERTS_TOPIC_NAME = "Futures Funding Alerts"
-    FUNDING_ALERTS_TOPIC_LINK = "https://t.me/officialmudrex/96073"
+    FUNDING_ALERTS_TOPIC_ID = int(os.getenv("FUNDING_TOPIC_ID", "0"))
+    FUNDING_ALERTS_TOPIC_NAME = "Фьючерсы и фандинг"
+    FUNDING_ALERTS_TOPIC_LINK = ""
     
-    # PnL topic: never delete any image posted here (Mudrex PnL screenshots by anyone)
-    PNL_TOPIC_ID = int(os.getenv("PNL_TOPIC_ID", "103380"))  # https://t.me/officialmudrex/103380
+    # PnL topic: never delete any image posted here
+    PNL_TOPIC_ID = int(os.getenv("PNL_TOPIC_ID", "0"))
     
     # Message to show when redirecting crypto commands
-    CRYPTO_COMMAND_REDIRECT_MESSAGE = """💡 <b>Wrong topic!</b>
+    CRYPTO_COMMAND_REDIRECT_MESSAGE = """💡 <b>Не та тема!</b>
 
-This command works in our <a href="{topic_link}">{topic_name}</a> topic.
+Эта команда работает в теме <a href="{topic_link}">{topic_name}</a>.
 
-Please use crypto/trading commands there! 📊"""
+Пожалуйста, используйте крипто-команды там! 📊"""
     
     # Message to show when redirecting funding commands
-    FUNDING_COMMAND_REDIRECT_MESSAGE = """💡 <b>Wrong topic!</b>
+    FUNDING_COMMAND_REDIRECT_MESSAGE = """💡 <b>Не та тема!</b>
 
-Funding rate commands work in our <a href="{topic_link}">{topic_name}</a> topic.
+Команды фандинга работают в теме <a href="{topic_link}">{topic_name}</a>.
 
-Please use /funding commands there! 📈"""
+Пожалуйста, используйте /funding там! 📈"""
     
     # Admin User IDs (can access /analytics via DM)
     # Add your Telegram user ID here
     ADMIN_USER_IDS = [
         int(x) for x in os.getenv("ADMIN_USER_IDS", "").split(",") if x.strip()
-    ] if os.getenv("ADMIN_USER_IDS") else [395803228]  # Default: @DecentralizedJM
+    ] if os.getenv("ADMIN_USER_IDS") else []
     
     # Analytics Settings
     ANALYTICS_ENABLED = True
     ANALYTICS_RETENTION_DAYS = 90  # Keep data for 90 days
     ANALYTICS_DATA_DIR = os.getenv("ANALYTICS_DATA_DIR", "data")  # Configurable for Railway volumes
     
-    # Gemini AI Integration (Free Tier)
-    GEMINI_ENABLED = True
-    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-    GEMINI_MODEL = "gemini-3-flash-preview"  # Official model name from Google AI docs
-    GEMINI_RPM_LIMIT = 10  # Conservative limit (Free tier is usually 15-60 RPM depending on region)
-    GEMINI_CONFIDENCE_THRESHOLD = 0.8  # Trust Gemini if it's 80% sure
-    GEMINI_SCAN_THRESHOLD = 0.3  # Only scan messages that are already slightly suspicious (score > 0.3)
-    # Don't waste Gemini quota on obvious safe messages, but use it to catch subtle spam
+    # Mistral AI Integration (replaces Gemini)
+    GEMINI_ENABLED = True  # Keep flag name for compatibility, but uses Mistral
+    GEMINI_API_KEY = os.getenv("MISTRAL_API_KEY")  # Mistral API key
+    GEMINI_MODEL = "mistral-small-latest"  # Mistral model
+    GEMINI_RPM_LIMIT = 10  # Conservative limit
+    GEMINI_CONFIDENCE_THRESHOLD = 0.8  # Trust AI if it's 80% sure
+    GEMINI_SCAN_THRESHOLD = 0.3  # Only scan messages that are already slightly suspicious
+    
+    # Mistral AI settings (explicit)
+    MISTRAL_ENABLED = True
+    MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
+    MISTRAL_MODEL = "mistral-small-latest"  # Fast and cheap model
+    MISTRAL_RPM_LIMIT = 10
+    MISTRAL_CONFIDENCE_THRESHOLD = 0.8
+    MISTRAL_SCAN_THRESHOLD = 0.3
     
     # ==================== NEW FEATURES ====================
     
     # Custom Commands
-    GUIDELINES_MESSAGE = """� <b>Mudrex Telegram Community Guidelines</b>
+    GUIDELINES_MESSAGE = """📋 <b>Правила сообщества</b>
 
-Welcome to the official Mudrex Telegram community! This is your space to learn, share, and grow as a crypto trader and investor — together.
+Добро пожаловать в авторский канал про разработку, AI и Web3!
 
-<i>This group is actively moderated to ensure quality discussions, safety, and clarity for all users.</i>
-
-━━━━━━━━━━━━━━━━━━━━
-
-🎯 <b>What This Community Is For</b>
-
-• Learning about crypto — from charts to concepts
-• Getting the most out of the Mudrex app
-• Sharing tips, strategies, and experiences with other traders
-• Staying updated on Mudrex features and campaigns
+<i>Группа активно модерируется для поддержания качества общения и безопасности участников.</i>
 
 ━━━━━━━━━━━━━━━━━━━━
 
-🔏 <b>Code of Conduct</b>
+🎯 <b>Темы сообщества</b>
 
-<b>1. Respect Everyone</b>
-Politeness is non-negotiable. No trolling, abuse, hate speech, or discrimination. No personal attacks. Ever.
-
-<b>2. Zero Tolerance for Link Sharing</b>
-No posting external links, referral codes, or promotions — even if they're related to crypto. Repeated violations = ban.
-
-<b>3. Don't Spam</b>
-Keep discussions meaningful. No flooding or repetitive messages.
-
-<b>4. Protect Your Privacy</b>
-Never share wallet addresses, login screenshots, emails, or account details.
-Need help? → <b>help@mudrex.com</b>
+• 🤖 Мультиагентные системы, MLOps/LLMOps/AgentOps
+• ⛓️ Блокчейн, NFT и смарт-контракты
+• ⚙️ Автоматизация процессов (n8n, LangFlow)
+• 🐍 Python, Go, Rust, Solidity и другие языки
+• 🌐 Веб-разработка и Web3
+• 💡 Обмен опытом и помощь новичкам
 
 ━━━━━━━━━━━━━━━━━━━━
 
-📚 <b>Posting Guidelines</b>
+🔏 <b>Правила поведения</b>
 
-✅ <b>Encouraged</b>
-• "How do I set a trailing stop-loss on Mudrex Futures?"
-• "Any strategy to invest weekly using the SIP mode?"
-• "Where can I see my P&L details in the app?"
+<b>1. Уважайте друг друга</b>
+Вежливость обязательна. Никакого троллинга, оскорблений, дискриминации и личных нападок.
 
-❌ <b>Not Allowed</b>
-• "Check out this new project! [link]"
-• "Use my referral code for bonus 💸"
+<b>2. Никакого спама и рекламы</b>
+Запрещено публиковать рекламу, реферальные коды и промо без разрешения администрации. Повторные нарушения = бан.
 
-━━━━━━━━━━━━━━━━━━━━
+<b>3. Не флудите</b>
+Ведите содержательные беседы по теме. Никакого флуда и повторяющихся сообщений.
 
-🛠 <b>Help & Feedback</b>
+<b>4. Запрещённые темы</b>
+Политика, нацизм, расизм, порно, наркотики, терроризм, экстремизм — немедленный бан.
 
-Product issues? → <b>help@mudrex.com</b>
-
-━━━━━━━━━━━━━━━━━━━━
-
-🚨 <b>Admin Discretion</b>
-
-Admins may remove any content or user that goes against the spirit of this community. Bans may be issued without prior warning for serious or repeated violations.
+<b>5. Защищайте свои данные</b>
+Никогда не публикуйте приватные ключи, seed-фразы, пароли или данные аккаунтов.
 
 ━━━━━━━━━━━━━━━━━━━━
 
-🙌 <b>Final Note</b>
+📚 <b>Что разрешено и что нет</b>
 
-No question is too basic. If you're here to learn, explore, or build — you're welcome.
+✅ <b>Приветствуется</b>
+• «Как реализовать мультиагентную систему на LangChain?»
+• «Какой паттерн лучше для смарт-контракта на Solidity?»
+• «Как настроить n8n для автоматизации?»
+• Ссылки на GitHub, документацию, статьи на Habr/Medium
 
-If you're here to sell, shill, or spam — you're in the wrong place.
+❌ <b>Запрещено</b>
+• Реклама и промо без разрешения
+• Мошеннические схемы, казино, финансовые пирамиды
+• Политические провокации
+• Контент 18+
 
-<i>Powered by Night Watchman 🌙</i>"""
+━━━━━━━━━━━━━━━━━━━━
+
+🚨 <b>Полномочия администрации</b>
+
+Администраторы могут удалять любой контент или пользователей, нарушающих дух сообщества. Баны могут выдаваться без предупреждения за серьёзные или повторные нарушения.
+
+━━━━━━━━━━━━━━━━━━━━
+
+🙌 <b>Напоследок</b>
+
+Если вы здесь, чтобы учиться, строить и развиваться — добро пожаловать.
+
+Если вы здесь, чтобы спамить или мошенничать — вы не по адресу.
+
+<i>Защищено Night Watchman 🌙</i>"""
     
-    HELP_MESSAGE = """🌙 <b>Night Watchman Commands</b>
+    HELP_MESSAGE = """🌙 <b>Команды Night Watchman</b>
 
-<b>Everyone:</b>
-/guidelines - Community rules
-/help - This message
-/admins - Tag admins for help
-/report - Report spam (reply to message)
-/rep - Check your reputation
-/leaderboard - All-time top users
-/leaderboard 7 - Top users (last 7 days)
-/leaderboard 30 - Top users (last 30 days)
+<b>Для всех:</b>
+/guidelines - Правила сообщества
+/help - Это сообщение
+/admins - Позвать администраторов
+/report - Пожаловаться на сообщение (ответьте на него)
+/rep - Проверить свою репутацию
+/leaderboard - Топ участников за всё время
+/leaderboard 7 - Топ участников за 7 дней
+/leaderboard 30 - Топ участников за 30 дней
 
-<b>Admins:</b>
-/warn - Warn a user (reply to message)
-/mute - Mute a user (reply to message)
-/ban - Ban a user (reply to message)
-/unwarn - Clear warnings (reply to message)
-/enhance - Award +15 points (reply to message)
-/stats - Bot statistics
-/analytics - Group analytics (DM)
+<b>Для администраторов:</b>
+/warn - Предупредить пользователя (ответьте на сообщение)
+/mute - Замутить пользователя (ответьте на сообщение)
+/ban - Забанить пользователя (ответьте на сообщение)
+/unwarn - Снять предупреждения (ответьте на сообщение)
+/enhance - Дать +15 очков репутации (ответьте на сообщение)
+/stats - Статистика бота
+/analytics - Аналитика группы (в ЛС)
 
-<b>📊 Earning Points:</b>
-Daily activity: +5 points
-Valid spam report: +10 points
-7-day streak bonus: +5 points
-30-day streak bonus: +10 points
-Admin enhancement (/enhance): +15 points
-Warning: -10 points
-Muted: -25 points
-Unmuted (false positive): +15 points
+<b>📊 Начисление очков репутации:</b>
+Ежедневная активность: +5 очков
+Обоснованная жалоба на спам: +10 очков
+Бонус за 7 дней подряд: +5 очков
+Бонус за 30 дней подряд: +10 очков
+Повышение от администратора (/enhance): +15 очков
+Предупреждение: -10 очков
+Мут: -25 очков
+Снятие мута (ложное срабатывание): +15 очков
 
-<i>Powered by Mudrex</i>"""
+<i>Защищено Night Watchman 🌙</i>"""
 
     # Safety Tip Message (shown when scammy spam is detected)
     SAFETY_TIP_MESSAGE = """
-🛡 <b>Safety Warning:</b>
-• Never share OTPs, passwords, or private keys.
-• Do not connect your wallet to unknown sites.
-• Unbelievable profits = Scams. Always DYOR.
-• Be careful interacting with strangers in DMs."""
+🛡 <b>Предупреждение безопасности:</b>
+• Никогда не передавайте OTP-коды, пароли или приватные ключи.
+• Не подключайте кошелёк к неизвестным сайтам.
+• Невероятная прибыль = мошенничество. Всегда проверяйте сами (DYOR).
+• Будьте осторожны при общении с незнакомцами в личных сообщениях."""
     
     # Reputation System (Points only - no perks/restrictions)
     # Points are for tracking engagement and can be used for campaigns
@@ -617,13 +886,13 @@ Unmuted (false positive): +15 points
     # Username Requirement
     REQUIRE_USERNAME = True
     USERNAME_GRACE_PERIOD_HOURS = 24  # Hours before kick
-    USERNAME_WARNING_MESSAGE = """⚠️ <b>Username Required</b>
+    USERNAME_WARNING_MESSAGE = """⚠️ <b>Требуется имя пользователя</b>
 
-Please set a Telegram username to participate in this group.
+Пожалуйста, установите имя пользователя (username) в Telegram, чтобы участвовать в этой группе.
 
-Go to Settings → Username to set one.
+Перейдите в Настройки → Имя пользователя.
 
-You have 24 hours before being removed."""
+У вас есть 24 часа, после чего вы будете удалены из группы."""
     
     # Report System
     REPORT_ENABLED = True

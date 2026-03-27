@@ -9,20 +9,22 @@ import logging
 import os
 import re
 import sys
-from datetime import datetime, timezone, timedelta
-from typing import Optional, Dict, List
+from datetime import datetime, timedelta, timezone
+from typing import Dict, List, Optional
+
 import httpx
 from dotenv import load_dotenv
 
-from config import Config
-from spam_detector import SpamDetector
-from analytics_tracker import AnalyticsTracker
-from reputation_tracker import ReputationTracker
-from ticker_fetcher import ticker_fetcher, get_crypto_tickers
-from behavior_profiler import BehaviorProfiler
-from context_analyzer import ContextAnalyzer
 from adaptive_thresholds import AdaptiveThresholds
+from analytics_tracker import AnalyticsTracker
+from behavior_profiler import BehaviorProfiler
+from config import Config
+from context_analyzer import ContextAnalyzer
 from redis_manager import RedisManager
+from reputation_tracker import ReputationTracker
+from spam_detector import SpamDetector
+from ticker_fetcher import get_crypto_tickers, ticker_fetcher
+
 # Import Decision Engine
 try:
     from decision_engine import DecisionEngine
@@ -187,76 +189,76 @@ class NightWatchman:
             'start_time': datetime.now(timezone.utc)
         }
         
-        # Cool ban messages for different scenarios
+        # Cool ban messages for different scenarios (Russian)
         self.ban_messages = {
             'spam': [
-                "🗑️ {name} - Spam detected. I've seen this garbage before. Banned.",
-                "🚫 {name} - Nice try with the spam. You're out.",
-                "⛔ {name} - Spam? Really? That's an instant ban from me.",
-                "🔨 {name} - I don't tolerate spam. You're permanently banned.",
-                "🗑️ {name} - Caught you spamming. No warnings, just bans.",
+                "🗑️ {name} — Спам обнаружен. Бан.",
+                "🚫 {name} — Попытка спама не удалась. Вы заблокированы.",
+                "⛔ {name} — Спам? Серьёзно? Немедленный бан.",
+                "🔨 {name} — Спам не терпим. Постоянный бан.",
+                "🗑️ {name} — Поймали на спаме. Без предупреждений — сразу бан.",
             ],
             'casino': [
-                "🎰 {name} - Casino spam? Not in my house. Banned for life.",
-                "🚫 {name} - Trying to push casino links? That's a hard ban.",
-                "⛔ {name} - I've seen your casino scam before. Out. Now.",
-                "🔨 {name} - Casino promoters don't last long here. Permanently banned.",
-                "🎲 {name} - Gambling spam gets you nowhere except banned.",
+                "🎰 {name} — Реклама казино? Не в этой группе. Бан навсегда.",
+                "🚫 {name} — Пытаетесь продвигать казино? Жёсткий бан.",
+                "⛔ {name} — Видели эту схему казино раньше. Вон отсюда.",
+                "🔨 {name} — Рекламщики казино здесь не задерживаются. Постоянный бан.",
+                "🎲 {name} — Спам с азартными играми ведёт только к бану.",
             ],
             'porn': [
-                "🔞 {name} - Inappropriate content. Instant permanent ban. No discussion.",
-                "🚫 {name} - Think I wouldn't catch that? Banned for adult content.",
-                "⛔ {name} - That content has no place here. You're done.",
-                "🔨 {name} - Adult spam gets zero tolerance. Permanent ban.",
+                "🔞 {name} — Неприемлемый контент. Мгновенный постоянный бан.",
+                "🚫 {name} — Думали, не замечу? Бан за контент для взрослых.",
+                "⛔ {name} — Такому контенту здесь не место. Вы заблокированы.",
+                "🔨 {name} — Нулевая терпимость к взрослому спаму. Постоянный бан.",
             ],
             'bot': [
-                "🤖 {name} - Bot account detected. Not allowed. Banned.",
-                "🚫 {name} - No bots in my watch. You're out.",
-                "⛔ {name} - Bot detected. I don't need backup, you're banned.",
-                "🔨 {name} - Bot accounts aren't welcome here. Permanent ban.",
+                "🤖 {name} — Обнаружен бот-аккаунт. Не разрешено. Бан.",
+                "🚫 {name} — Ботам здесь не место. Вы заблокированы.",
+                "⛔ {name} — Бот обнаружен. Бан.",
+                "🔨 {name} — Бот-аккаунты здесь не приветствуются. Постоянный бан.",
             ],
             'dm_spam': [
-                "📩 {name} - Aggressive DM pushing? That's a ban.",
-                "🚫 {name} - 'Inbox me'? Not happening. You're out.",
-                "⛔ {name} - DM solicitation gets you banned. Every time.",
-                "🔨 {name} - Nobody wants your DMs. Permanently banned.",
+                "📩 {name} — Агрессивные приглашения в ЛС? Это бан.",
+                "🚫 {name} — «Пишите в личку»? Не выйдет. Вы заблокированы.",
+                "⛔ {name} — Спам с приглашениями в ЛС = бан. Каждый раз.",
+                "🔨 {name} — Никому не нужны ваши ЛС. Постоянный бан.",
             ],
             'phishing': [
-                "🎣 {name} - Phishing links? I see right through you. Banned.",
-                "🚫 {name} - Nice try with the suspicious link. You're done.",
-                "⛔ {name} - Phishing scam detected. Permanently banned.",
-                "🔨 {name} - These links don't fool me. You're out for good.",
+                "🎣 {name} — Фишинговые ссылки? Вижу вас насквозь. Бан.",
+                "🚫 {name} — Хорошая попытка с подозрительной ссылкой. Вы заблокированы.",
+                "⛔ {name} — Фишинг обнаружен. Постоянный бан.",
+                "🔨 {name} — Эти ссылки меня не обманут. Вы заблокированы навсегда.",
             ],
             'forward': [
-                "📤 {name} - Forwarded spam detected. That's an instant ban.",
-                "🚫 {name} - No forwarding garbage here. Banned.",
-                "⛔ {name} - Forwarding spam? I don't think so. Out.",
-                "🔨 {name} - Story forwarding spam gets you banned. Period.",
-                "📤 {name} - Caught your forward. Analyzed. Banned.",
+                "📤 {name} — Обнаружен пересланный спам. Мгновенный бан.",
+                "🚫 {name} — Пересылать мусор сюда не нужно. Бан.",
+                "⛔ {name} — Пересылаете спам? Не думаю. Вон.",
+                "🔨 {name} — Пересылка спама = бан. Точка.",
+                "📤 {name} — Поймали пересылку. Проанализировали. Забанили.",
             ],
             'media_spam': [
-                "🖼️ {name} - Media spam? Seriously? Banned.",
-                "🚫 {name} - Flooding with media won't work. You're out.",
-                "⛔ {name} - Media spam detected. Permanent ban.",
-                "🔨 {name} - Stop the spam. Oh wait, you're already banned.",
+                "🖼️ {name} — Медиа-спам? Серьёзно? Бан.",
+                "🚫 {name} — Флуд медиафайлами не поможет. Вы заблокированы.",
+                "⛔ {name} — Медиа-спам обнаружен. Постоянный бан.",
+                "🔨 {name} — Прекратите спам. Впрочем, вы уже забанены.",
             ],
             'recruitment': [
-                "💼 {name} - Fake job scam? Out. Banned permanently.",
-                "🚫 {name} - Recruitment scam detected. Not today. Banned.",
-                "⛔ {name} - Job scams don't fly here. You're done.",
-                "🔨 {name} - Nobody falls for your 'work from home' garbage. Banned.",
+                "💼 {name} — Мошенничество с вакансиями? Вон. Постоянный бан.",
+                "🚫 {name} — Мошеннический набор обнаружен. Не сегодня. Бан.",
+                "⛔ {name} — Схемы с «работой» здесь не работают. Вы заблокированы.",
+                "🔨 {name} — Никто не верит в «работу на дому» за $500. Бан.",
             ],
             'foreign_language': [
-                "🌍 {name} - Foreign language spam detected. Banned.",
-                "🚫 {name} - This isn't the place for that. Out.",
-                "⛔ {name} - Language policy violation. Banned permanently.",
-                "🔨 {name} - Wrong language, wrong group. You're banned.",
+                "🌍 {name} — Обнаружен спам на иностранном языке. Бан.",
+                "🚫 {name} — Здесь не место для этого. Вон.",
+                "⛔ {name} — Нарушение языковой политики. Постоянный бан.",
+                "🔨 {name} — Не тот язык, не та группа. Вы забанены.",
             ],
             'default': [
-                "🚫 {name} - Out. You don't belong here.",
-                "⛔ {name} - Banned. Don't test me.",
-                "🔨 {name} - That's a permanent ban. I don't give second chances.",
-                "🚷 {name} - You're done here. Move along.",
+                "🚫 {name} — Вон. Вам здесь не место.",
+                "⛔ {name} — Забанен. Не испытывайте меня.",
+                "🔨 {name} — Постоянный бан. Второго шанса не будет.",
+                "🚷 {name} — Вы здесь закончили. Проходите.",
             ]
         }
 
@@ -760,7 +762,7 @@ class NightWatchman:
                 banned = await self._ban_user(chat_id, user_id)
                 if banned:
                     self.stats['users_banned'] += 1
-                    ban_msg = f"🔨 <b>{user_name}</b> has been banned for sharing a story."
+                    ban_msg = f"🔨 <b>{user_name}</b> забанен за пересылку истории."
                     await self._send_message(chat_id, ban_msg)
                     # Report to admin
                     if self.admin_chat_id:
@@ -914,8 +916,8 @@ class NightWatchman:
                                 self.stats['users_muted'] += 1
                                 await self._send_message(
                                     chat_id,
-                                    f"🔇 <b>{user_name}</b> muted for 24h — no forwarding allowed! Next time = ban ⚠️"
-                                    f"Next violation will result in a ban."
+                                    f"🔇 <b>{user_name}</b> замучен на 24ч — пересылка запрещена! Следующий раз = бан ⚠️"
+                                    f"Следующее нарушение приведёт к бану."
                                 )
                         else:
                             await self._send_message(
@@ -1146,11 +1148,15 @@ class NightWatchman:
                 # Check specifics of the ban trigger
                 ban_triggers = result.get('triggers', [])
                 
-                # REVERTED: Do NOT allow "financial_scam" or "promo_spam" for ALL USERS.
-                # Only allow specific Mudrex content (whitelisted).
-                if "mudrex.go.link" in text.lower() or "mudrex.com" in text.lower():
-                     logger.info(f"✅ Allowed Mudrex link for {user_name} (Whitelisted)")
-                     return
+                # Check if the link is whitelisted (e.g. known safe domains)
+                text_lower = text.lower()
+                is_whitelisted_link = any(
+                    domain in text_lower
+                    for domain in self.config.WHITELISTED_DOMAINS
+                )
+                if is_whitelisted_link:
+                    logger.info(f"✅ Allowed whitelisted link for {user_name}")
+                    return
 
                 # If high rep, skip ban even for severe stuff (but still delete)
                 if is_high_rep:
@@ -1180,7 +1186,7 @@ class NightWatchman:
                      await self._delete_message(chat_id, message_id)
                      await self._send_message(
                         chat_id,
-                        f"⚠️ <b>{user_name}</b>, non-Indian languages are not allowed here."
+                        f"⚠️ <b>{user_name}</b>, в этой группе разрешены только русский и английский языки."
                     )
                      return
 
@@ -1238,7 +1244,7 @@ class NightWatchman:
                         self.stats['users_muted'] += 1
                         await self._send_message(
                             chat_id,
-                            f"🔇 <b>{user_name}</b> has been muted for {self.config.MUTE_DURATION_HOURS}h for posting disallowed links."
+                            f"🔇 <b>{user_name}</b> замучен на {self.config.MUTE_DURATION_HOURS}ч за публикацию запрещённых ссылок."
                         )
                 else:
                     # Record decision for adaptive thresholds
@@ -1572,17 +1578,17 @@ class NightWatchman:
                     # Notify in group
                     await self._send_message(
                         chat_id,
-                        f"🔇 <b>{user_name}</b> has been muted for {self.config.MUTE_DURATION_HOURS}h due to spam."
+                        f"🔇 <b>{user_name}</b> замучен на {self.config.MUTE_DURATION_HOURS}ч за спам."
                     )
             else:
                 # Send warning
                 remaining = self.config.AUTO_MUTE_AFTER_WARNINGS - warnings
-                action_text = "removed" if deleted else "flagged"
+                action_text = "удалено" if deleted else "помечено"
 
-                # Check if we should append the generic safety tip (for scam/Gemini detections)
+                # Check if we should append the generic safety tip (for scam/AI detections)
                 show_safety_tip = False
                 for r in result.get('reasons', []):
-                    if "Gemini" in r or "scam" in r.lower() or "bait" in r.lower():
+                    if "Gemini" in r or "Mistral" in r or "scam" in r.lower() or "bait" in r.lower():
                         show_safety_tip = True
                         break
                 
@@ -1590,8 +1596,8 @@ class NightWatchman:
 
                 await self._send_message(
                     chat_id,
-                    f"⚠️ <b>{user_name}</b>, your message was {action_text} for spam. "
-                    f"Warning {warnings}/{self.config.AUTO_MUTE_AFTER_WARNINGS}.{safety_msg}"
+                    f"⚠️ <b>{user_name}</b>, ваше сообщение было {action_text} как спам. "
+                    f"Предупреждение {warnings}/{self.config.AUTO_MUTE_AFTER_WARNINGS}.{safety_msg}"
                 )
         
         # Report to admin
@@ -1614,20 +1620,20 @@ class NightWatchman:
         safe_text = html_escape(text[:500])
         safe_reasons = [html_escape(r) for r in result.get('reasons', [])]
         
-        report = f"""🚨 <b>Spam Detected</b>
+        report = f"""🚨 <b>Обнаружен спам</b>
 
-👤 User: {safe_user_name} (@{safe_username})
-🆔 User ID: <code>{user_id}</code>
-💬 Chat: <code>{chat_id}</code>
+👤 Пользователь: {safe_user_name} (@{safe_username})
+🆔 ID: <code>{user_id}</code>
+💬 Чат: <code>{chat_id}</code>
 
-📝 <b>Message:</b>
+📝 <b>Сообщение:</b>
 <code>{safe_text}</code>
 
-⚠️ <b>Reasons:</b>
+⚠️ <b>Причины:</b>
 {chr(10).join('• ' + r for r in safe_reasons)}
 
-📊 Score: {result['spam_score']:.2f}
-🔧 Action: {result['action']}"""
+📊 Оценка: {result['spam_score']:.2f}
+🔧 Действие: {result['action']}"""
         
         await self._send_message(self.admin_chat_id, report)
     
@@ -1675,7 +1681,7 @@ class NightWatchman:
                 await self._send_message(
                     chat_id,
                     f"⚠️ <b>{user_name}</b>, {reason}. "
-                    f"Warning {warnings}/{self.config.AUTO_MUTE_AFTER_WARNINGS}."
+                    f"Предупреждение {warnings}/{self.config.AUTO_MUTE_AFTER_WARNINGS}."
                 )
         
         elif action == "delete_and_mute":
@@ -1684,7 +1690,7 @@ class NightWatchman:
                 self.stats['users_muted'] += 1
                 await self._send_message(
                     chat_id,
-                    f"🔇 <b>{user_name}</b> has been muted for {self.config.MUTE_DURATION_HOURS}h — {reason}"
+                        f"🔇 <b>{user_name}</b> замучен на {self.config.MUTE_DURATION_HOURS}ч — {reason}"
                 )
         
         # Report to admin
@@ -1755,15 +1761,15 @@ class NightWatchman:
         if text.startswith('/start'):
             welcome = """🌙 <b>Night Watchman</b>
 
-I am a spam detection bot that protects Telegram groups from:
-• Scam links & phishing
-• Spam messages
-• Flood attacks
-• New account abuse
+Я бот для защиты Telegram-групп от:
+• Мошеннических ссылок и фишинга
+• Спам-сообщений
+• Флуд-атак
+• Злоупотреблений новых аккаунтов
 
-<b>Add me to your group as admin</b> and I'll start protecting it immediately.
+<b>Добавьте меня в группу как администратора</b> — и я сразу начну её защищать.
 
-<i>Powered by Mudrex</i>"""
+<i>Night Watchman 🌙</i>"""
             await self._send_message(chat_id, welcome, auto_delete=False)
             
         elif text.startswith('/stats'):
@@ -1776,17 +1782,17 @@ I am a spam detection bot that protects Telegram groups from:
             ml_info = ""
             if ml_stats.get('ml_available'):
                 model_type = ml_stats.get('model_type', 'Unknown')
-                status = 'Active' if ml_stats.get('is_trained') else 'Training...'
-                ml_info = f"\n\n🤖 <b>ML Classifier:</b> {status}\n🧠 Model: {model_type}\n📚 Training: {ml_stats.get('spam_samples', 0)} spam, {ml_stats.get('ham_samples', 0)} ham"
+                status = 'Активен' if ml_stats.get('is_trained') else 'Обучается...'
+                ml_info = f"\n\n🤖 <b>ML-классификатор:</b> {status}\n🧠 Модель: {model_type}\n📚 Обучение: {ml_stats.get('spam_samples', 0)} спам, {ml_stats.get('ham_samples', 0)} норм"
             
-            stats_msg = f"""📊 <b>Night Watchman Stats</b>
+            stats_msg = f"""📊 <b>Статистика Night Watchman</b>
 
-⏱️ Uptime: {hours}h {minutes}m
-📨 Messages checked: {self.stats['messages_checked']}
-🚨 Spam detected: {self.stats['spam_detected']}
-🗑️ Messages deleted: {self.stats['messages_deleted']}
-⚠️ Users warned: {self.stats['users_warned']}
-🔇 Users muted: {self.stats['users_muted']}{ml_info}"""
+⏱️ Аптайм: {hours}ч {minutes}м
+📨 Проверено сообщений: {self.stats['messages_checked']}
+🚨 Обнаружено спама: {self.stats['spam_detected']}
+🗑️ Удалено сообщений: {self.stats['messages_deleted']}
+⚠️ Предупреждений: {self.stats['users_warned']}
+🔇 Замучено: {self.stats['users_muted']}{ml_info}"""
             await self._send_message(chat_id, stats_msg, auto_delete=False)
     
         elif text.startswith('/newscam'):
@@ -2155,7 +2161,9 @@ I am a spam detection bot that protects Telegram groups from:
         extraction_status = "Skipped (Scanner disabled)"
         if self.detector.gemini_scanner and self.detector.gemini_scanner.enabled:
             try:
-                from pattern_extractor import extract_patterns_from_description, validate_and_sanitize_patterns
+                from pattern_extractor import (
+                    extract_patterns_from_description,
+                    validate_and_sanitize_patterns)
                 
                 patterns = await extract_patterns_from_description(
                     self.detector.gemini_scanner,
@@ -2432,7 +2440,7 @@ I am a spam detection bot that protects Telegram groups from:
                 self.stats['users_muted'] += 1
                 await self._send_message(
                     chat_id,
-                    f"🔇 <b>{user_name}</b> has been muted for {self.config.MUTE_DURATION_HOURS}h for bad language."
+                    f"🔇 <b>{user_name}</b> замучен на {self.config.MUTE_DURATION_HOURS}ч за нецензурную лексику."
                 )
         elif action in ['warn', 'delete_and_warn']:
             # Warn user and track warnings
@@ -2449,8 +2457,8 @@ I am a spam detection bot that protects Telegram groups from:
             
             await self._send_message(
                 chat_id,
-                f"⚠️ <b>{user_name}</b>, please keep the language clean. "
-                f"Warning {warnings}/{self.config.AUTO_MUTE_AFTER_WARNINGS}."
+                f"⚠️ <b>{user_name}</b>, пожалуйста, следите за языком. "
+                f"Предупреждение {warnings}/{self.config.AUTO_MUTE_AFTER_WARNINGS}."
             )
             
             # Check if should mute/ban after warnings
@@ -2458,12 +2466,12 @@ I am a spam detection bot that protects Telegram groups from:
                 banned = await self._ban_user(chat_id, user_id)
                 if banned:
                     self.stats['users_banned'] += 1
-                    await self._send_message(chat_id, f"🔨 <b>{user_name}</b> has been banned for repeated violations.")
+                    await self._send_message(chat_id, f"🔨 <b>{user_name}</b> забанен за повторные нарушения.")
             elif warnings >= self.config.AUTO_MUTE_AFTER_WARNINGS:
                 muted = await self._mute_user(chat_id, user_id)
                 if muted:
                     self.stats['users_muted'] += 1
-                    await self._send_message(chat_id, f"🔇 <b>{user_name}</b> has been muted for {self.config.MUTE_DURATION_HOURS}h.")
+                    await self._send_message(chat_id, f"🔇 <b>{user_name}</b> замучен на {self.config.MUTE_DURATION_HOURS}ч.")
         
         # Report to admin
         if self.admin_chat_id:
@@ -2473,16 +2481,16 @@ I am a spam detection bot that protects Telegram groups from:
             safe_text = html_escape(text[:300])
             safe_bad_words = [html_escape(w) for w in bad_words[:5]]
             
-            report = f"""💬 <b>Bad Language Detected</b>
+            report = f"""💬 <b>Нецензурная лексика</b>
 
-👤 User: {safe_user_name} (@{safe_username})
-🆔 User ID: <code>{user_id}</code>
-💬 Chat: <code>{chat_id}</code>
+👤 Пользователь: {safe_user_name} (@{safe_username})
+🆔 ID: <code>{user_id}</code>
+💬 Чат: <code>{chat_id}</code>
 
-📝 <b>Message:</b>
+📝 <b>Сообщение:</b>
 <code>{safe_text}</code>
 
-🚫 <b>Words:</b> {', '.join(safe_bad_words)}"""
+🚫 <b>Слова:</b> {', '.join(safe_bad_words)}"""
             await self._send_message(self.admin_chat_id, report)
     
     async def _verify_new_user(self, chat_id: int, user: Dict, join_time: datetime):
@@ -2517,19 +2525,19 @@ I am a spam detection bot that protects Telegram groups from:
                 await self._ban_user(chat_id, user_id)
                 await self._send_message(
                     chat_id,
-                    f"🔨 Suspicious account detected and banned."
+                    f"🔨 Обнаружен подозрительный аккаунт — забанен."
                 )
             else:
                 # Restrict new user
                 await self._restrict_new_user(chat_id, user_id)
                 if self.admin_chat_id:
-                    report = f"""⚠️ <b>Suspicious User Joined</b>
+                    report = f"""⚠️ <b>Подозрительный пользователь вступил</b>
 
-👤 User: {first_name} (@{username or 'N/A'})
-🆔 User ID: <code>{user_id}</code>
-💬 Chat: <code>{chat_id}</code>
+👤 Пользователь: {first_name} (@{username or 'N/A'})
+🆔 ID: <code>{user_id}</code>
+💬 Чат: <code>{chat_id}</code>
 
-⚠️ <b>Reasons:</b>
+⚠️ <b>Причины:</b>
 {chr(10).join('• ' + r for r in suspicious_reasons)}"""
                     await self._send_message(self.admin_chat_id, report)
     
@@ -2715,7 +2723,7 @@ I am a spam detection bot that protects Telegram groups from:
                 if not scam_text:
                     # If still no text, just ban the user but warn admin we couldn't learn
                     # We continue execution to at least BAN the user
-                    await self._send_message(chat_id, "⚠️ <b>Warning:</b> No text/caption found to learn from, but proceeding with ban.")
+                    await self._send_message(chat_id, "⚠️ <b>Внимание:</b> Текст/подпись не найдены для обучения, но бан выполняется.")
                     scam_text = "Empty message or media-only spam"
                 
                 if not scammer_id:
@@ -2806,8 +2814,8 @@ I am a spam detection bot that protects Telegram groups from:
                 self.stats['users_warned'] += 1
                 await self._send_message(
                     chat_id,
-                    f"⚠️ <b>{target_name}</b> has been warned. "
-                    f"Warnings: {warnings}/{self.config.AUTO_MUTE_AFTER_WARNINGS}"
+                    f"⚠️ <b>{target_name}</b> получил предупреждение. "
+                    f"Предупреждений: {warnings}/{self.config.AUTO_MUTE_AFTER_WARNINGS}"
                 )
                 
                 # Learn spam from warned message (if reply-to)
@@ -2821,13 +2829,13 @@ I am a spam detection bot that protects Telegram groups from:
                         if self.adaptive_thresholds:
                             self.adaptive_thresholds.record_admin_action(chat_id, 0.8, 'warn')
             else:
-                await self._send_message(chat_id, "⚠️ Usage: Reply to message, /warn @username, or /warn <user_id>")
+                await self._send_message(chat_id, "⚠️ Использование: ответьте на сообщение, /warn @username или /warn <user_id>")
             
         elif command == '/ban':
             if target_user_id:
                 banned = await self._ban_user(chat_id, target_user_id)
                 if banned:
-                    await self._send_message(chat_id, f"🔨 <b>{target_name}</b> has been banned.")
+                    await self._send_message(chat_id, f"🔨 <b>{target_name}</b> забанен.")
                     self.stats['users_banned'] += 1
                     
                     # Learn spam from banned message (if reply-to)
@@ -2841,7 +2849,7 @@ I am a spam detection bot that protects Telegram groups from:
                             if self.adaptive_thresholds:
                                 self.adaptive_thresholds.record_admin_action(chat_id, 0.9, 'ban')
             else:
-                await self._send_message(chat_id, "⚠️ Usage: Reply to message, /ban @username, or /ban <user_id>")
+                await self._send_message(chat_id, "⚠️ Использование: ответьте на сообщение, /ban @username или /ban <user_id>")
                 
         elif command == '/mute':
             if target_user_id:
@@ -2849,7 +2857,7 @@ I am a spam detection bot that protects Telegram groups from:
                 if muted:
                     await self._send_message(
                         chat_id,
-                        f"🔇 <b>{target_name}</b> has been muted for {self.config.MUTE_DURATION_HOURS}h."
+                        f"🔇 <b>{target_name}</b> замучен на {self.config.MUTE_DURATION_HOURS}ч."
                     )
                     self.stats['users_muted'] += 1
                     
@@ -2860,12 +2868,12 @@ I am a spam detection bot that protects Telegram groups from:
                             self.detector.learn_spam(muted_text)
                             logger.info(f"📝 ML learning spam from /mute reply")
             else:
-                await self._send_message(chat_id, "⚠️ Usage: Reply to message, /mute @username, or /mute <user_id>")
+                await self._send_message(chat_id, "⚠️ Использование: ответьте на сообщение, /mute @username или /mute <user_id>")
                 
         elif command == '/unwarn':
             if target_user_id:
                 self.detector.clear_warnings(target_user_id)
-                await self._send_message(chat_id, f"✅ Warnings cleared for <b>{target_name}</b>.")
+                await self._send_message(chat_id, f"✅ Предупреждения сняты с <b>{target_name}</b>.")
                 
                 # Learn ham from unwarned message (if reply-to) - indicates false positive
                 if reply_to and reply_to.get('text'):
@@ -2879,7 +2887,7 @@ I am a spam detection bot that protects Telegram groups from:
                             self.adaptive_thresholds.record_false_positive(chat_id)
                             self.adaptive_thresholds.record_admin_action(chat_id, 0.5, 'unwarn')
             else:
-                await self._send_message(chat_id, "⚠️ Usage: Reply to message, /unwarn @username, or /unwarn <user_id>")
+                await self._send_message(chat_id, "⚠️ Использование: ответьте на сообщение, /unwarn @username или /unwarn <user_id>")
             
         elif command == '/enhance' and target_user_id:
             logger.info(f"💎 /enhance command received from admin {user_id} for target {target_user_id}")
@@ -2931,17 +2939,17 @@ I am a spam detection bot that protects Telegram groups from:
             hours = int(uptime.total_seconds() // 3600)
             minutes = int((uptime.total_seconds() % 3600) // 60)
             
-            stats_msg = f"""📊 <b>Night Watchman Stats</b>
+            stats_msg = f"""📊 <b>Статистика Night Watchman</b>
 
-⏱️ Uptime: {hours}h {minutes}m
-📨 Messages checked: {self.stats['messages_checked']}
-🚨 Spam detected: {self.stats['spam_detected']}
-💬 Bad language: {self.stats['bad_language_detected']}
-🗑️ Messages deleted: {self.stats['messages_deleted']}
-⚠️ Users warned: {self.stats['users_warned']}
-🔇 Users muted: {self.stats['users_muted']}
-🔨 Users banned: {self.stats['users_banned']}
-⚠️ Suspicious users: {self.stats['suspicious_users_detected']}"""
+⏱️ Аптайм: {hours}ч {minutes}м
+📨 Проверено сообщений: {self.stats['messages_checked']}
+🚨 Обнаружено спама: {self.stats['spam_detected']}
+💬 Нецензурная лексика: {self.stats['bad_language_detected']}
+🗑️ Удалено сообщений: {self.stats['messages_deleted']}
+⚠️ Предупреждений: {self.stats['users_warned']}
+🔇 Замучено: {self.stats['users_muted']}
+🔨 Забанено: {self.stats['users_banned']}
+⚠️ Подозрительных: {self.stats['suspicious_users_detected']}"""
             await self._send_message(chat_id, stats_msg)
             
         elif command == '/cas':
@@ -3167,25 +3175,25 @@ No CAS ban record found."""
                 self.detector.learn_spam(text)
                 
             # Send Warning instead of Ban
-            warn_msg = f"🛡️ <b>{user_name}</b>, your message was removed as spam.\n" \
-                       f"⚠️ High reputation saved you from a <b>BAN</b>. Please be careful!"
+            warn_msg = f"🛡️ <b>{user_name}</b>, ваше сообщение удалено как спам.\n" \
+                       f"⚠️ Высокая репутация спасла вас от <b>бана</b>. Будьте осторожны!"
             await self._send_message(chat_id, warn_msg)
             
             # Report to admin as "Spared"
             if self.admin_chat_id:
-                forward_indicator = "📤 <b>(Forwarded)</b> " if is_forwarded else ""
-                report = f"""🛡️ <b>Ban Immunity Applied</b>
+                forward_indicator = "📤 <b>(Пересылка)</b> " if is_forwarded else ""
+                report = f"""🛡️ <b>Иммунитет от бана применён</b>
 {forward_indicator}
-👤 User: {user_name} (@{username or 'N/A'})
-🆔 User ID: <code>{user_id}</code>
-💬 Chat: <code>{chat_id}</code>
-⚠️ Triggers: {', '.join(triggers)}
-📋 Reasons: {', '.join(reasons)}
+👤 Пользователь: {user_name} (@{username or 'N/A'})
+🆔 ID: <code>{user_id}</code>
+💬 Чат: <code>{chat_id}</code>
+⚠️ Триггеры: {', '.join(triggers)}
+📋 Причины: {', '.join(reasons)}
 
-📝 <b>Message:</b>
+📝 <b>Сообщение:</b>
 <code>{text[:500]}</code>
 
-✅ <b>Action:</b> Message Deleted (Ban Spared)"""
+✅ <b>Действие:</b> Сообщение удалено (бан отменён)"""
                 await self._send_message(self.admin_chat_id, report)
             return
 
@@ -3205,18 +3213,18 @@ No CAS ban record found."""
             # Report to admin
             if self.admin_chat_id:
                 forward_indicator = "📤 <b>(Forwarded Spam)</b>\n" if is_forwarded else ""
-                report = f"""🚨 <b>INSTANT BAN - Severe Violation</b>
+                report = f"""🚨 <b>МГНОВЕННЫЙ БАН — Серьёзное нарушение</b>
 {forward_indicator}
-👤 User: {user_name} (@{username or 'N/A'})
-🆔 User ID: <code>{user_id}</code>
-💬 Chat: <code>{chat_id}</code>
-⚠️ Triggers: {', '.join(triggers)}
-📋 Reasons: {', '.join(reasons)}
+👤 Пользователь: {user_name} (@{username or 'N/A'})
+🆔 ID: <code>{user_id}</code>
+💬 Чат: <code>{chat_id}</code>
+⚠️ Триггеры: {', '.join(triggers)}
+📋 Причины: {', '.join(reasons)}
 
-📝 <b>Message:</b>
+📝 <b>Сообщение:</b>
 <code>{text[:500]}</code>
 
-✅ <b>Action:</b> Immediately banned"""
+✅ <b>Действие:</b> Немедленный бан"""
                 await self._send_message(self.admin_chat_id, report)
         else:
             logger.error(f"Failed to ban user {user_id} for instant ban violation")
@@ -3236,10 +3244,10 @@ No CAS ban record found."""
         
         # VIP BYPASS: Admin-enhanced / high-rep users get full immunity
         if await self._is_vip_user(user_id):
-            logger.info(f"🛡️ VIP BYPASS: User {user_name} (ID: {user_id}) - skipping non-Indian language ban")
+            logger.info(f"🛡️ VIP BYPASS: User {user_name} (ID: {user_id}) - skipping foreign language ban")
             await self._send_message(
                 chat_id,
-                f"⚠️ <b>{user_name}</b>, non-Indian languages are not allowed here."
+                f"⚠️ <b>{user_name}</b>, в этой группе разрешены только русский и английский языки."
             )
             return
         
@@ -3249,10 +3257,10 @@ No CAS ban record found."""
             banned = await self._ban_user(chat_id, user_id)
             if banned:
                 self.stats['users_banned'] += 1
-                logger.info(f"🔨 Banned {user_name} for non-Indian language spam")
+                logger.info(f"🔨 Banned {user_name} for foreign language spam")
                 await self._send_message(
                     chat_id,
-                    f"🔨 <b>{user_name}</b> has been banned for posting suspicious content in non-Indian language ({detected_lang})."
+                    f"🔨 <b>{user_name}</b> забанен за публикацию подозрительного контента на иностранном языке ({detected_lang})."
                 )
         
         # Report to admin
@@ -3263,14 +3271,14 @@ No CAS ban record found."""
             safe_text = html_escape(text[:300])
             safe_lang = html_escape(detected_lang)
             
-            report = f"""🚫 <b>Non-Indian Language Spam</b>
+            report = f"""🚫 <b>Спам на иностранном языке</b>
 
-👤 User: {safe_user_name} (@{safe_username})
-🆔 User ID: <code>{user_id}</code>
-💬 Chat: <code>{chat_id}</code>
-🌐 Language: {safe_lang}
+👤 Пользователь: {safe_user_name} (@{safe_username})
+🆔 ID: <code>{user_id}</code>
+💬 Чат: <code>{chat_id}</code>
+🌐 Язык: {safe_lang}
 
-📝 <b>Message:</b>
+📝 <b>Сообщение:</b>
 <code>{safe_text}</code>
 
 � <b>Action:</b> Banned immediately"""

@@ -3,24 +3,26 @@ Night Watchman - ML-based Spam Classifier
 Uses Ensemble Voting (Naive Bayes + Logistic Regression + Random Forest) for adaptive spam detection
 """
 
-import os
 import json
 import logging
+import os
 import re
-from typing import Dict, Tuple, List, Optional
 from datetime import datetime, timezone
+from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
 # Check if scikit-learn is available
 try:
-    from sklearn.feature_extraction.text import TfidfVectorizer
-    from sklearn.naive_bayes import MultinomialNB
-    from sklearn.linear_model import LogisticRegression
-    from sklearn.ensemble import RandomForestClassifier, VotingClassifier, GradientBoostingClassifier
-    from sklearn.neural_network import MLPClassifier
     import pickle
+
     import numpy as np
+    from sklearn.ensemble import (GradientBoostingClassifier,
+                                  RandomForestClassifier, VotingClassifier)
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.naive_bayes import MultinomialNB
+    from sklearn.neural_network import MLPClassifier
     ML_AVAILABLE = True
 except ImportError:
     ML_AVAILABLE = False
@@ -178,12 +180,32 @@ class SpamClassifier:
                 "Limited time offer, act now before it's too late",
                 "I made $50,000 last month working from home",
                 "This changed my life, you need to try this",
+                
+                # Russian spam examples (спам на русском)
+                "Пишите в лс, расскажу как зарабатывать от $200 в день",
+                "Набираю команду для удалённой работы, заработок от 1000 рублей в день",
+                "Гарантированный доход без вложений, пишите в личку",
+                "Казино бонус 200% при регистрации, введи промокод",
+                "Вы выиграли! Активируйте промокод и получите $100",
+                "Инвестиционный проект с доходностью 10% в день",
+                "Финансовая пирамида с гарантированным доходом",
+                "Хайп проект, вложи сейчас и получи x10",
+                "Эскорт услуги, горячие фото в лс",
+                "Обнал, отмывание денег, быстро и безопасно",
+                "Торговые сигналы, 95% точность, пишите в лс",
+                "Бинарные опционы, заработок от $500 в день",
+                "Удвоение депозита за 24 часа, проверенная схема",
+                "Ищу партнёров для инвест проекта, доход от $200 в день",
+                "Простые задания, 1-2 часа в день, ежедневные выплаты",
+                "Зарабатывай дома без вложений, обучу бесплатно",
+                "1вин казино, фриспины при регистрации",
+                "1хбет бонус, ставки на спорт с гарантией",
+                "Мелбет промокод, получи бонус сейчас",
             ],
             "ham": [
-                # Normal crypto discussion
+                # Normal crypto discussion (English)
                 "What do you think about BTC price action today?",
                 "I'm bullish on ETH for the long term",
-                "Anyone using Mudrex for trading?",
                 "The market is looking pretty volatile",
                 "Should I DCA into Bitcoin or wait for a dip?",
                 "What's the best strategy for beginners?",
@@ -192,7 +214,7 @@ class SpamClassifier:
                 "The funding rates are really high right now",
                 "Technical analysis shows support at 40k",
                 
-                # Normal questions
+                # Normal questions (English)
                 "How do I withdraw my funds?",
                 "What are the fees on this platform?",
                 "Can someone help me with KYC verification?",
@@ -204,7 +226,7 @@ class SpamClassifier:
                 "Can I use a credit card to buy crypto?",
                 "How long does withdrawal take?",
                 
-                # Normal conversation
+                # Normal conversation (English)
                 "Good morning everyone!",
                 "Thanks for the help",
                 "That makes sense, appreciate it",
@@ -216,12 +238,46 @@ class SpamClassifier:
                 "Great community here",
                 "Glad to be part of this group",
                 
-                # Mudrex specific
-                "How does Mudrex work?",
-                "What's the APY on the earn products?",
-                "Is Mudrex available in my country?",
-                "Can I use Mudrex on mobile?",
-                "What coins can I trade on Mudrex?",
+                # Normal Russian conversation (обычные сообщения на русском)
+                "Привет всем!",
+                "Как дела?",
+                "Добрый день",
+                "Спасибо за помощь",
+                "Интересная точка зрения",
+                "Согласен с тобой",
+                "Хорошего дня всем",
+                "Рад быть частью этого сообщества",
+                "Что думаете о курсе биткоина?",
+                "Я держу ETH уже несколько лет",
+                "Рынок сейчас очень волатильный",
+                "Какая лучшая стратегия для новичков?",
+                "Как вывести средства?",
+                "Какие комиссии на платформе?",
+                "Когда выйдет новая функция?",
+                "Не могу войти в аккаунт, помогите",
+                "Как связаться с поддержкой?",
+                "Какая минимальная сумма депозита?",
+                "Сколько времени занимает вывод?",
+                "Технический анализ показывает поддержку на уровне 40к",
+                "Ставки финансирования сейчас очень высокие",
+                "Хорошая точка входа для SOL?",
+                "Всем удачной торговли!",
+                "Оставайтесь в безопасности",
+                "Отличное сообщество",
+                "Спасибо за анализ",
+                "Посмотрим как это развернётся",
+                "Интересная перспектива",
+                "Это имеет смысл, спасибо",
+                "Доброе утро!",
+                "Добрый вечер!",
+                "Всем привет!",
+                "Как у вас дела?",
+                "Что нового?",
+                "Хорошего настроения!",
+                "Спасибо за информацию",
+                "Очень полезно",
+                "Буду иметь в виду",
+                "Понял, спасибо",
             ],
             "last_updated": datetime.now(timezone.utc).isoformat()
         }

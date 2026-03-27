@@ -3,25 +3,30 @@ Night Watchman - Spam Detection Engine
 Analyzes messages for spam patterns
 """
 
-import re
-import logging
 import hashlib
-from typing import Dict, List, Tuple, Optional
-from datetime import datetime, timezone, timedelta
+import logging
+import re
+from datetime import datetime, timedelta, timezone
+from typing import Dict, List, Optional, Tuple
+
 from config import Config
 
 # Import ML classifier (optional - gracefully degrades if not available)
 try:
-    from ml_classifier import get_classifier, SpamClassifier
+    from ml_classifier import SpamClassifier, get_classifier
     ML_ENABLED = True
 except ImportError:
     ML_ENABLED = False
 
-# Import Gemini Scanner (optional)
+# Import Mistral Scanner (replaces Gemini for Russian-speaking groups)
 try:
-    from gemini_scanner import get_gemini_scanner
+    from mistral_scanner import get_mistral_scanner as get_gemini_scanner
 except ImportError:
-    pass
+    # Fallback to original Gemini scanner if Mistral not available
+    try:
+        from gemini_scanner import get_gemini_scanner
+    except ImportError:
+        pass
 
 logger = logging.getLogger(__name__)
 
@@ -92,17 +97,26 @@ class SpamDetector:
             except Exception as e:
                 logger.error(f"Failed to initialize ML classifier: {e}")
         
-        # Initialize Gemini Scanner
+        # Initialize AI Scanner (Mistral, with Gemini fallback)
         self.gemini_scanner = None
         try:
-            from gemini_scanner import get_gemini_scanner
-            self.gemini_scanner = get_gemini_scanner()
+            from mistral_scanner import get_mistral_scanner
+            self.gemini_scanner = get_mistral_scanner()
             if self.gemini_scanner.enabled:
-                logger.info("✨ Gemini AI scanner connected")
+                logger.info("✨ Mistral AI scanner connected")
         except ImportError:
-            pass
+            # Fallback to Gemini if Mistral not available
+            try:
+                from gemini_scanner import get_gemini_scanner
+                self.gemini_scanner = get_gemini_scanner()
+                if self.gemini_scanner.enabled:
+                    logger.info("✨ Gemini AI scanner connected (fallback)")
+            except ImportError:
+                pass
+            except Exception as e:
+                logger.error(f"Failed to initialize Gemini scanner: {e}")
         except Exception as e:
-            logger.error(f"Failed to initialize Gemini scanner: {e}")
+            logger.error(f"Failed to initialize Mistral scanner: {e}")
         
         # Initialize Hugging Face Classifier
         self.hf_classifier = None
@@ -318,13 +332,13 @@ class SpamDetector:
             result['reasons'].append(f"Suspicious URLs detected")
             result['details']['urls'] = url_details
             
-            # Non-whitelisted links = immediate action if high score
-            # Specifically check for instagram links or other social links often used for spam
+            # Non-whitelisted links — only flag as suspicious, don't immediately mute
+            # The score will accumulate with other signals to determine action
+            # Only known suspicious domains (URL shorteners, t.me) get high score
             if any(u for u in url_details['suspicious']):
-                 # Immediate mute for suspicious/non-whitelisted links
-                 result['action'] = 'mute_24h' # Custom action for handler
-                 result['is_spam'] = True
-                 result['spam_score'] = 1.0 
+                # Don't immediately mute — let the score accumulate
+                # The spam_score is already updated above
+                pass
 
         # 3. New user posting links
         if user_join_date:
@@ -638,24 +652,25 @@ class SpamDetector:
                 return result
         
         # 4. Aggressive DM patterns (instant ban)
+        # NOTE: Only use SPECIFIC patterns to avoid false positives on normal messages
         dm_patterns = [
-            # Direct DM requests
-            'dm me now', 'inbox me', 'message me now', 'dm me', 
-            'aaja inbox', 'inbox karo', 'dm kar', 'dm karo',
+            # Direct DM requests (specific enough)
+            'dm me now', 'inbox me now', 'message me now',
             # Bio/link references (common in scams)
             'check bio', 'link in bio', 'bio link', 'see bio', 'check my bio',
             'link in my bio', 'link in the bio', 'see my bio',
-            # Contact/reach out patterns
-            'reach out', 'reach out to me', 'reach out now', 'contact me',
-            'contact me now', 'get in touch', 'hit me up', 'slide into',
-            'drop a dm', 'send a dm', 'private message', 'pm me',
-            # Hindi/Hinglish variants
-            'inbox me aao', 'message karo', 'contact karo', 'dm kijiye',
+            # Contact/reach out patterns (specific)
+            'hit me up', 'slide into',
+            'drop a dm', 'send a dm',
             # Scam-specific patterns
             'want to learn more? message', 'want to know more? dm',
             'interested? dm', 'if interested, message', 'if interested, dm',
             'details in dm', 'details in pm', 'details in private',
-            'write to me', 'write me', 'write now', 'write to me at'
+            # Russian DM solicitation patterns (specific)
+            'пишите в лс срочно', 'пишите в личку срочно',
+            'напишите мне срочно', 'стучите в лс',
+            'пишите в лс за деталями', 'пишите в личку за деталями',
+            'пишите в лс для подробностей', 'пишите в личку для подробностей',
         ]
         for pattern in dm_patterns:
             if pattern in message_lower or pattern in message_normalized:
@@ -809,21 +824,21 @@ class SpamDetector:
         ]
         has_recruitment = any(kw in message_lower for kw in recruitment_keywords)
         
-        # DM request patterns (including variations with dashes, colons, etc.)
+        # DM request patterns (specific enough to avoid false positives)
         dm_patterns = [
-            'write to', 'message me', 'dm me', 'private message',
-            'send me a', 'contact me', 'write "+"', "write '+'", 'leave a "+"',
-            'write +', 'leave +', 'interested, message', 'if interested',
-            'details:', 'details -', 'want to join', 'details in pm',
-            'details in dm', 'write now', 'write to me at', 'send me a private',
-            'pm -', 'dm -', 'pm:', 'write me',
-            # New patterns from examples (with dashes, colons)
-            'message —', 'message -', 'dm —', 'dm -', 'contact —', 'contact -',
-            'message:', 'dm:', 'contact:', 'reach out —', 'reach out -',
-            'join my telegram', 'join my telegram channel', 'join telegram',
-            'dm me or join', 'message me or join', 'contact me or join',
+            'dm me', 'private message me', 'send me a dm',
+            'write "+"', "write '+'", 'leave a "+"',
+            'write +', 'leave +',
+            'details in pm', 'details in dm',
+            'write to me at', 'send me a private',
+            'join my telegram', 'join my telegram channel',
+            'dm me or join', 'message me or join',
             'want to learn more? message', 'want to know more? dm',
-            'if you want to', 'if you want to understand', 'if you want to apply'
+            # Russian DM patterns (specific)
+            'пишите в лс', 'пишите в личку', 'напишите в лс',
+            'напишите в личку', 'стучите в лс', 'стучите в личку',
+            'пиши в лс', 'пиши в личку',
+            'написать в лс', 'написать в личку',
         ]
         has_dm_request = any(kw in message_lower for kw in dm_patterns)
         
@@ -1067,20 +1082,18 @@ class SpamDetector:
                 details['whitelisted'].append(url)
                 continue
             
-            # Check suspicious domains
+            # Check known suspicious domains (URL shorteners, t.me links)
             is_suspicious = any(domain in url_lower for domain in self.config.SUSPICIOUS_DOMAINS)
-            # Instagram is not implicitly suspicious but is not whitelisted, so we trap it
-            if "instagram.com" in url_lower or "youtu.be" in url_lower or "youtube.com" in url_lower:
-                # Treat as suspicious because it's non-whitelisted external link
-                is_suspicious = True
-                
+            
             if is_suspicious:
                 details['suspicious'].append(url)
-                score += 0.8 # High score for known suspicious/unwanted links
+                score += 0.6  # Known suspicious domain
             else:
-                # Unknown external link
-                details['suspicious'].append(url) # Treat all unknown as suspicious for now per request
-                score += 0.8
+                # Unknown external link — moderate score (not instant ban)
+                # This allows news links, YouTube, etc. to pass through
+                # but still flags them for review
+                details['suspicious'].append(url)
+                score += 0.4  # Unknown link — moderate suspicion
         
         return min(score, 1.0), details
     
@@ -1240,12 +1253,14 @@ class SpamDetector:
     def _check_non_indian_language(self, message: str) -> Tuple[bool, str]:
         """Check if message contains non-Indian languages (Chinese, Korean, Russian, etc.)
         
-        Note: Hindi (Devanagari), Tamil, Telugu, Bengali, etc. are ALLOWED as Indian languages.
+        Note: Russian (Cyrillic) and English (Latin) are ALLOWED as the primary languages.
         """
         if not self.config.BLOCK_NON_INDIAN_LANGUAGES:
             return False, ""
         
-        # Unicode ranges for BLOCKED non-Indian languages
+        # Unicode ranges for BLOCKED foreign languages
+        # Russian (Cyrillic 0x0400-0x04FF) is NOT in this list — it's the primary language
+        # English (Latin) is also NOT blocked
         language_ranges = {
             'chinese': [
                 (0x4E00, 0x9FFF),  # CJK Unified Ideographs
@@ -1256,9 +1271,7 @@ class SpamDetector:
                 (0xAC00, 0xD7A3),  # Hangul Syllables
                 (0x1100, 0x11FF),  # Hangul Jamo
             ],
-            'russian': [
-                (0x0400, 0x04FF),  # Cyrillic
-            ],
+            # 'russian' REMOVED — Cyrillic is the PRIMARY language of this group
             'japanese': [
                 (0x3040, 0x309F),  # Hiragana
                 (0x30A0, 0x30FF),  # Katakana
@@ -1274,16 +1287,8 @@ class SpamDetector:
             ],
         }
         
-        # Indian languages (ALLOWED - Devanagari, Tamil, Telugu, Bengali, etc.)
-        # 0x0900-0x097F: Devanagari (Hindi, Marathi, Sanskrit)
-        # 0x0980-0x09FF: Bengali
-        # 0x0A00-0x0A7F: Gurmukhi (Punjabi)
-        # 0x0A80-0x0AFF: Gujarati
-        # 0x0B00-0x0B7F: Oriya
-        # 0x0B80-0x0BFF: Tamil
-        # 0x0C00-0x0C7F: Telugu
-        # 0x0C80-0x0CFF: Kannada
-        # 0x0D00-0x0D7F: Malayalam
+        # Allowed languages: Russian (Cyrillic), English (Latin)
+        # All other scripts listed above will be flagged
         
         detected_languages = []
         for lang, ranges in language_ranges.items():
